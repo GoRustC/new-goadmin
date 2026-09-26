@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Auther interface {
@@ -96,12 +96,12 @@ type JWTAuth struct {
 
 func (a *JWTAuth) GenerateToken(ctx context.Context, subject string) (TokenInfo, error) {
 	now := time.Now()
-	expiresAt := now.Add(time.Duration(a.opts.expired) * time.Second).Unix()
+	expiresAt := now.Add(time.Duration(a.opts.expired) * time.Second)
 
-	token := jwt.NewWithClaims(a.opts.signingMethod, &jwt.StandardClaims{
-		IssuedAt:  now.Unix(),
-		ExpiresAt: expiresAt,
-		NotBefore: now.Unix(),
+	token := jwt.NewWithClaims(a.opts.signingMethod, &jwt.RegisteredClaims{
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(expiresAt),
+		NotBefore: jwt.NewNumericDate(now),
 		Subject:   subject,
 	})
 
@@ -111,21 +111,21 @@ func (a *JWTAuth) GenerateToken(ctx context.Context, subject string) (TokenInfo,
 	}
 
 	tokenInfo := &tokenInfo{
-		ExpiresAt:   expiresAt,
+		ExpiresAt:   expiresAt.Unix(),
 		TokenType:   a.opts.tokenType,
 		AccessToken: tokenStr,
 	}
 	return tokenInfo, nil
 }
 
-func (a *JWTAuth) parseToken(tokenStr string) (*jwt.StandardClaims, error) {
+func (a *JWTAuth) parseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
 	var (
 		token *jwt.Token
 		err   error
 	)
 
 	for _, keyFunc := range a.opts.keyFuncs {
-		token, err = jwt.ParseWithClaims(tokenStr, &jwt.StandardClaims{}, keyFunc)
+		token, err = jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, keyFunc)
 		if err != nil || token == nil || !token.Valid {
 			continue
 		}
@@ -136,7 +136,7 @@ func (a *JWTAuth) parseToken(tokenStr string) (*jwt.StandardClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return token.Claims.(*jwt.StandardClaims), nil
+	return token.Claims.(*jwt.RegisteredClaims), nil
 }
 
 func (a *JWTAuth) callStore(fn func(Storer) error) error {
@@ -153,7 +153,7 @@ func (a *JWTAuth) DestroyToken(ctx context.Context, tokenStr string) error {
 	}
 
 	return a.callStore(func(store Storer) error {
-		expired := time.Until(time.Unix(claims.ExpiresAt, 0))
+		expired := time.Until(claims.ExpiresAt.Time)
 		return store.Set(ctx, tokenStr, expired)
 	})
 }

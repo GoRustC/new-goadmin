@@ -9,7 +9,7 @@ import (
 	"github.com/LyricTian/gin-admin/v10/pkg/cachex"
 	"github.com/LyricTian/gin-admin/v10/pkg/gormx"
 	"github.com/LyricTian/gin-admin/v10/pkg/jwtx"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
