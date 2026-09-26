@@ -3,7 +3,7 @@ package logging
 import (
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"encoding/json"
 	"github.com/rs/xid"
 	"gorm.io/gorm"
 )
@@ -41,7 +41,7 @@ func (h *GormHook) Exec(extra map[string]string, b []byte) error {
 		ID: xid.New().String(),
 	}
 	data := make(map[string]interface{})
-	err := jsoniter.Unmarshal(b, &data)
+	err := json.Unmarshal(b, &data)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (h *GormHook) Exec(extra map[string]string, b []byte) error {
 	}
 
 	if len(data) > 0 {
-		buf, _ := jsoniter.Marshal(data)
+		buf, _ := json.Marshal(data)
 		msg.Data = string(buf)
 	}
 

@@ -4,21 +4,41 @@ package errors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
 // Define alias
 var (
-	WithStack = errors.WithStack
-	Wrap      = errors.Wrap
-	Wrapf     = errors.Wrapf
-	Is        = errors.Is
-	Errorf    = errors.Errorf
+	Is     = errors.Is
+	Errorf = fmt.Errorf
 )
+
+// WithStack returns err unchanged. It is kept for API compatibility with
+// the previous github.com/pkg/errors based implementation.
+func WithStack(err error) error {
+	return err
+}
+
+// Wrap returns an error annotating err with the supplied message.
+// If err is nil, Wrap returns nil.
+func Wrap(err error, message string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", message, err)
+}
+
+// Wrapf returns an error annotating err with the formatted message.
+// If err is nil, Wrapf returns nil.
+func Wrapf(err error, format string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
+}
 
 const (
 	DefaultBadRequestID            = "bad_request"
