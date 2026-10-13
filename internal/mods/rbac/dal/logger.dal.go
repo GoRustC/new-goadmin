@@ -3,6 +3,7 @@ package dal
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
 	"github.com/LyricTian/gin-admin/v10/pkg/errors"
@@ -71,4 +72,10 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 		Data:       list,
 	}
 	return queryResult, nil
+}
+
+// DeleteBefore removes log entries created before t and returns how many.
+func (a *Logger) DeleteBefore(ctx context.Context, t time.Time) (int64, error) {
+	result := GetLoggerDB(ctx, a.DB).Where("created_at < ?", t).Delete(new(schema.Logger))
+	return result.RowsAffected, errors.WithStack(result.Error)
 }

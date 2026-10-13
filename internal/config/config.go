@@ -112,6 +112,9 @@ type Util struct {
 
 type Dictionary struct {
 	UserCacheExp int `default:"4"` // hours
+	// Delete logger table rows older than this many days, checked hourly.
+	// 0 keeps everything; the table otherwise grows with every request.
+	LoggerRetentionDays int
 }
 
 func (c *Config) IsDebug() bool {

@@ -104,6 +104,7 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 		DB: db,
 	}
 	bizLogger := &biz.Logger{
+		Config:    config,
 		LoggerDAL: logger,
 	}
 	apiLogger := &api.Logger{

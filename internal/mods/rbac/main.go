@@ -54,6 +54,7 @@ func (a *RBAC) Init(ctx context.Context) error {
 	if err := a.Casbinx.Load(ctx); err != nil {
 		return err
 	}
+	a.LoggerAPI.LoggerBIZ.StartRetention(ctx)
 
 	if name := a.Config.General.MenuFile; name != "" {
 		fullPath := filepath.Join(a.Config.General.WorkDir, name)
@@ -121,6 +122,7 @@ func (a *RBAC) RegisterV1Routers(ctx context.Context, v1 *gin.RouterGroup) error
 }
 
 func (a *RBAC) Release(ctx context.Context) error {
+	a.LoggerAPI.LoggerBIZ.StopRetention()
 	if err := a.Casbinx.Release(ctx); err != nil {
 		return err
 	}
