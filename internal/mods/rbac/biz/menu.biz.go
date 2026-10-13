@@ -11,7 +11,6 @@ import (
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/cachex"
 	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
 	"github.com/GoRustC/new-goadmin/pkg/encoding/yaml"
 	"github.com/GoRustC/new-goadmin/pkg/errors"
@@ -22,8 +21,8 @@ import (
 
 // Menu management for RBAC
 type Menu struct {
+	Policy          PolicyReloader
 	Config          *config.Config
-	Cache           cachex.Cacher
 	Trans           *util.Trans
 	MenuDAL         *dal.Menu
 	MenuResourceDAL *dal.MenuResource
@@ -425,7 +424,7 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 		return err
 	}
 
-	return a.execAndSync(ctx, func(ctx context.Context) error {
+	return a.execAndReload(ctx, func(ctx context.Context) error {
 		if oldStatus != formItem.Status {
 			oldPath := oldParentPath + menu.ID + util.TreePathDelimiter
 			if err := a.MenuDAL.UpdateStatusByParentPath(ctx, oldPath, formItem.Status); err != nil {
@@ -491,7 +490,7 @@ func (a *Menu) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	return a.execAndSync(ctx, func(ctx context.Context) error {
+	return a.execAndReload(ctx, func(ctx context.Context) error {
 		if err := a.delete(ctx, id); err != nil {
 			return err
 		}
@@ -519,16 +518,12 @@ func (a *Menu) delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// execAndSync runs fn in a transaction and signals casbin to reload only
-// after the commit. Signalling inside the transaction let the poller load
-// the pre-commit data and then treat the change as handled.
-func (a *Menu) execAndSync(ctx context.Context, fn util.TransFunc) error {
+// execAndReload runs fn in a transaction and, once it has committed,
+// rebuilds the authorization policy so the change applies immediately.
+// Reloading inside the transaction would read the pre-commit data.
+func (a *Menu) execAndReload(ctx context.Context, fn util.TransFunc) error {
 	if err := a.Trans.Exec(ctx, fn); err != nil {
 		return err
 	}
-	return a.syncToCasbin(ctx)
-}
-
-func (a *Menu) syncToCasbin(ctx context.Context) error {
-	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, util.NewXID())
+	return a.Policy.Reload(ctx)
 }

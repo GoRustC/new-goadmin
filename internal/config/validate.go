@@ -69,8 +69,6 @@ func (c *Config) Validate() error {
 	}
 
 	if !c.Middleware.Casbin.Disable {
-		check(c.Middleware.Casbin.AutoLoadInterval > 0, "Middleware.Casbin.AutoLoadInterval must be greater than 0")
-		check(c.Middleware.Casbin.LoadThread > 0, "Middleware.Casbin.LoadThread must be greater than 0")
 		check(c.Middleware.Casbin.ModelFile != "", "Middleware.Casbin.ModelFile is required")
 	}
 

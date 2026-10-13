@@ -35,21 +35,31 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 		return nil, nil, err
 	}
 	config := ProvideConfig()
-	trans := &util.Trans{
-		DB: db,
-	}
 	menu := &dal.Menu{
 		DB: db,
 	}
 	menuResource := &dal.MenuResource{
 		DB: db,
 	}
+	role := &dal.Role{
+		DB: db,
+	}
 	roleMenu := &dal.RoleMenu{
 		DB: db,
 	}
-	bizMenu := &biz.Menu{
+	casbinx := &rbac.Casbinx{
 		Config:          config,
-		Cache:           cacher,
+		MenuDAL:         menu,
+		MenuResourceDAL: menuResource,
+		RoleDAL:         role,
+		RoleMenuDAL:     roleMenu,
+	}
+	trans := &util.Trans{
+		DB: db,
+	}
+	bizMenu := &biz.Menu{
+		Policy:          casbinx,
+		Config:          config,
 		Trans:           trans,
 		MenuDAL:         menu,
 		MenuResourceDAL: menuResource,
@@ -58,14 +68,11 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 	apiMenu := &api.Menu{
 		MenuBIZ: bizMenu,
 	}
-	role := &dal.Role{
-		DB: db,
-	}
 	userRole := &dal.UserRole{
 		DB: db,
 	}
 	bizRole := &biz.Role{
-		Cache:       cacher,
+		Policy:      casbinx,
 		Trans:       trans,
 		RoleDAL:     role,
 		RoleMenuDAL: roleMenu,
@@ -109,13 +116,6 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 	}
 	apiLogger := &api.Logger{
 		LoggerBIZ: bizLogger,
-	}
-	casbinx := &rbac.Casbinx{
-		Config:          config,
-		Cache:           cacher,
-		MenuDAL:         menu,
-		MenuResourceDAL: menuResource,
-		RoleDAL:         role,
 	}
 	rbacRBAC := &rbac.RBAC{
 		Config:    config,

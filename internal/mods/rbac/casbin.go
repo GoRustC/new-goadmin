@@ -1,10 +1,10 @@
 package rbac
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,7 +13,6 @@ import (
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/cachex"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/casbin/casbin/v2"
@@ -22,126 +21,51 @@ import (
 	"go.uber.org/zap"
 )
 
-// Load rbac permissions to casbin
+// Casbinx builds the casbin policy from roles, menus and menu resources.
+//
+// The service runs as a single instance, so role and menu changes reload the
+// policy in-process right after they commit (see biz.PolicyReloader); there
+// is no polling and no cross-instance signal.
 type Casbinx struct {
+	enforcer        atomic.Pointer[casbin.Enforcer] `wire:"-"`
+	reloadMu        sync.Mutex                      `wire:"-"`
 	Config          *config.Config
-	enforcer        *atomic.Value `wire:"-"`
-	ticker          *time.Ticker  `wire:"-"`
-	Cache           cachex.Cacher
 	MenuDAL         *dal.Menu
 	MenuResourceDAL *dal.MenuResource
 	RoleDAL         *dal.Role
+	RoleMenuDAL     *dal.RoleMenu
 }
 
+// GetEnforcer returns the current enforcer, or nil before the first load.
+// The casbin middleware denies every request while it is nil.
 func (a *Casbinx) GetEnforcer() *casbin.Enforcer {
-	if v := a.enforcer.Load(); v != nil {
-		return v.(*casbin.Enforcer)
-	}
-	return nil
+	return a.enforcer.Load()
 }
 
-type policyQueueItem struct {
-	RoleID    string
-	Resources schema.MenuResources
-}
-
+// Load builds the initial policy.
 func (a *Casbinx) Load(ctx context.Context) error {
 	if a.Config.Middleware.Casbin.Disable {
 		return nil
 	}
-
-	if a.Config.Storage.Cache.Type == "memory" && !a.Config.IsDebug() {
-		logging.Context(ctx).Warn("Casbin policy reloads are signalled through Storage.Cache; " +
-			"with the memory cache, other instances never see role or menu changes. " +
-			"Use the redis cache when running more than one instance.")
-	}
-
-	// Read the reload signal before loading, so a change made while loading
-	// shows up as a new value on the next tick.
-	signal, err := a.reloadSignal(ctx)
-	if err != nil {
-		return err
-	}
-
-	a.enforcer = new(atomic.Value)
-	if err := a.load(ctx); err != nil {
-		return err
-	}
-
-	// Create the ticker before starting the goroutine so Release never races with it.
-	a.ticker = time.NewTicker(time.Duration(a.Config.Middleware.Casbin.AutoLoadInterval) * time.Second)
-	go a.autoLoad(ctx, signal)
-	return nil
+	return a.Reload(ctx)
 }
 
-// reloadSignal returns the value role and menu changes write to the cache.
-// Every change writes a new unique ID, so any difference means "reload".
-func (a *Casbinx) reloadSignal(ctx context.Context) (string, error) {
-	val, _, err := a.Cache.Get(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin)
-	return val, err
-}
+// Reload rebuilds the policy from the database and swaps it in. Concurrent
+// calls run one at a time; on error the current policy stays in place.
+func (a *Casbinx) Reload(ctx context.Context) error {
+	if a.Config.Middleware.Casbin.Disable {
+		return nil
+	}
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
 
-func (a *Casbinx) load(ctx context.Context) error {
 	start := time.Now()
-	roleResult, err := a.RoleDAL.Query(ctx, schema.RoleQueryParam{
-		Status: schema.RoleStatusEnabled,
-	}, schema.RoleQueryOptions{
-		QueryOptions: util.QueryOptions{SelectFields: []string{"id"}},
-	})
+	policy, roles, rules, err := a.buildPolicy(ctx)
 	if err != nil {
+		logging.Context(ctx).Error("Failed to build casbin policy", zap.Error(err))
 		return err
 	}
 
-	var resCount int32
-	queue := make(chan *policyQueueItem, len(roleResult.Data))
-	threadNum := max(a.Config.Middleware.Casbin.LoadThread, 1)
-	lock := new(sync.Mutex)
-	buf := new(bytes.Buffer)
-
-	wg := new(sync.WaitGroup)
-	wg.Add(threadNum)
-	for i := 0; i < threadNum; i++ {
-		go func() {
-			defer wg.Done()
-			ibuf := new(bytes.Buffer)
-			for item := range queue {
-				for _, res := range item.Resources {
-					// No trailing whitespace: the string adapter does not trim
-					// lines, so "GET " would never match a request method.
-					_, _ = fmt.Fprintf(ibuf, "p, %s, %s, %s\n", item.RoleID, res.Path, res.Method)
-				}
-			}
-			lock.Lock()
-			_, _ = buf.Write(ibuf.Bytes())
-			lock.Unlock()
-		}()
-	}
-
-	var loadErr error
-	for _, item := range roleResult.Data {
-		resources, err := a.queryRoleResources(ctx, item.ID)
-		if err != nil {
-			// Abort the whole load: installing a partial policy would deny the
-			// role's users until the next change. Keep the current enforcer and
-			// let the next tick retry.
-			loadErr = fmt.Errorf("query resources of role %s: %w", item.ID, err)
-			break
-		}
-		atomic.AddInt32(&resCount, int32(len(resources)))
-		queue <- &policyQueueItem{
-			RoleID:    item.ID,
-			Resources: resources,
-		}
-	}
-	close(queue)
-	wg.Wait()
-	if loadErr != nil {
-		return loadErr
-	}
-
-	// Always swap in a fresh enforcer, even with no policies: keeping the old
-	// one would continue to allow permissions that were just revoked.
-	// Policies are loaded from memory, so nothing is written to the work dir.
 	modelFile := filepath.Join(a.Config.General.WorkDir, a.Config.Middleware.Casbin.ModelFile)
 	m, err := model.NewModelFromFile(modelFile)
 	if err != nil {
@@ -149,8 +73,8 @@ func (a *Casbinx) load(ctx context.Context) error {
 		return err
 	}
 	var e *casbin.Enforcer
-	if buf.Len() > 0 {
-		e, err = casbin.NewEnforcer(m, stringadapter.NewAdapter(buf.String()))
+	if policy != "" {
+		e, err = casbin.NewEnforcer(m, stringadapter.NewAdapter(policy))
 	} else {
 		// The string adapter rejects empty input; a model-only enforcer has no
 		// policies and therefore denies every request.
@@ -161,88 +85,107 @@ func (a *Casbinx) load(ctx context.Context) error {
 		return err
 	}
 	e.EnableLog(a.Config.IsDebug())
+	// Always swap in the new enforcer, even with no policies: keeping the old
+	// one would continue to allow permissions that were just revoked.
 	a.enforcer.Store(e)
 
 	logging.Context(ctx).Info("Casbin load policy",
 		zap.Duration("cost", time.Since(start)),
-		zap.Int("roles", len(roleResult.Data)),
-		zap.Int32("resources", resCount),
-		zap.Int("bytes", buf.Len()),
+		zap.Int("roles", roles),
+		zap.Int("rules", rules),
 	)
 	return nil
 }
 
-func (a *Casbinx) queryRoleResources(ctx context.Context, roleID string) (schema.MenuResources, error) {
-	menuResult, err := a.MenuDAL.Query(ctx, schema.MenuQueryParam{
-		RoleID: roleID,
-		Status: schema.MenuStatusEnabled,
-	}, schema.MenuQueryOptions{
-		QueryOptions: util.QueryOptions{
-			SelectFields: []string{"id", "parent_id", "parent_path"},
-		},
+// buildPolicy returns the policy as "p, role, path, method" lines, with a
+// fixed number of queries regardless of how many roles exist. A role grants
+// the resources of each enabled menu assigned to it and of that menu's
+// ancestors.
+func (a *Casbinx) buildPolicy(ctx context.Context) (policy string, roles, rules int, err error) {
+	roleResult, err := a.RoleDAL.Query(ctx, schema.RoleQueryParam{
+		Status: schema.RoleStatusEnabled,
+	}, schema.RoleQueryOptions{
+		QueryOptions: util.QueryOptions{SelectFields: []string{"id"}},
 	})
 	if err != nil {
-		return nil, err
-	} else if len(menuResult.Data) == 0 {
-		return nil, nil
+		return "", 0, 0, fmt.Errorf("query roles: %w", err)
+	}
+	if len(roleResult.Data) == 0 {
+		return "", 0, 0, nil
 	}
 
-	menuIDs := make([]string, 0, len(menuResult.Data))
-	menuIDMapper := make(map[string]struct{})
-	for _, item := range menuResult.Data {
-		if _, ok := menuIDMapper[item.ID]; ok {
-			continue
-		}
-		menuIDs = append(menuIDs, item.ID)
-		menuIDMapper[item.ID] = struct{}{}
-		if pp := item.ParentPath; pp != "" {
-			for _, pid := range strings.Split(pp, util.TreePathDelimiter) {
-				if pid == "" {
-					continue
+	roleMenuResult, err := a.RoleMenuDAL.Query(ctx, schema.RoleMenuQueryParam{}, schema.RoleMenuQueryOptions{
+		QueryOptions: util.QueryOptions{SelectFields: []string{"role_id", "menu_id"}},
+	})
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("query role menus: %w", err)
+	}
+	menuResult, err := a.MenuDAL.Query(ctx, schema.MenuQueryParam{}, schema.MenuQueryOptions{
+		QueryOptions: util.QueryOptions{SelectFields: []string{"id", "parent_path", "status"}},
+	})
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("query menus: %w", err)
+	}
+	resourceResult, err := a.MenuResourceDAL.Query(ctx, schema.MenuResourceQueryParam{}, schema.MenuResourceQueryOptions{
+		QueryOptions: util.QueryOptions{SelectFields: []string{"menu_id", "method", "path"}},
+	})
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("query menu resources: %w", err)
+	}
+
+	menus := make(map[string]*schema.Menu, len(menuResult.Data))
+	for _, m := range menuResult.Data {
+		menus[m.ID] = m
+	}
+	resources := make(map[string]schema.MenuResources)
+	for _, r := range resourceResult.Data {
+		resources[r.MenuID] = append(resources[r.MenuID], r)
+	}
+	menusByRole := make(map[string][]string)
+	for _, rm := range roleMenuResult.Data {
+		menusByRole[rm.RoleID] = append(menusByRole[rm.RoleID], rm.MenuID)
+	}
+
+	var b strings.Builder
+	for _, role := range roleResult.Data {
+		// Granted menus that are enabled, plus their ancestors.
+		granted := make(map[string]struct{})
+		for _, menuID := range menusByRole[role.ID] {
+			m, ok := menus[menuID]
+			if !ok || m.Status != schema.MenuStatusEnabled {
+				continue
+			}
+			granted[m.ID] = struct{}{}
+			for _, pid := range strings.Split(m.ParentPath, util.TreePathDelimiter) {
+				if pid != "" {
+					granted[pid] = struct{}{}
 				}
-				if _, ok := menuIDMapper[pid]; ok {
-					continue
-				}
-				menuIDs = append(menuIDs, pid)
-				menuIDMapper[pid] = struct{}{}
 			}
 		}
-	}
 
-	menuResourceResult, err := a.MenuResourceDAL.Query(ctx, schema.MenuResourceQueryParam{
-		MenuIDs: menuIDs,
-	})
-	if err != nil {
-		return nil, err
+		seen := make(map[string]struct{})
+		var lines []string
+		for menuID := range granted {
+			for _, r := range resources[menuID] {
+				// No trailing whitespace: the string adapter does not trim
+				// lines, so "GET " would never match a request method.
+				line := fmt.Sprintf("p, %s, %s, %s", role.ID, r.Path, r.Method)
+				if _, dup := seen[line]; !dup {
+					seen[line] = struct{}{}
+					lines = append(lines, line)
+				}
+			}
+		}
+		sort.Strings(lines) // deterministic output for logs and tests
+		for _, line := range lines {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+		rules += len(lines)
 	}
-
-	return menuResourceResult.Data, nil
-}
-
-// autoLoad reloads policies whenever the reload signal differs from the one
-// last handled. Comparing for inequality rather than ordering means changes
-// made within the same second, or on hosts with skewed clocks, are not lost.
-func (a *Casbinx) autoLoad(ctx context.Context, handled string) {
-	for range a.ticker.C {
-		signal, err := a.reloadSignal(ctx)
-		if err != nil {
-			logging.Context(ctx).Error("Failed to get cache", zap.Error(err), zap.String("key", config.CacheKeyForSyncToCasbin))
-			continue
-		}
-		if signal == handled {
-			continue
-		}
-		if err := a.load(ctx); err != nil {
-			logging.Context(ctx).Error("Failed to load casbin policy", zap.Error(err))
-			continue // keep the old value so the next tick retries
-		}
-		handled = signal
-	}
+	return b.String(), len(roleResult.Data), rules, nil
 }
 
 func (a *Casbinx) Release(ctx context.Context) error {
-	if a.ticker != nil {
-		a.ticker.Stop()
-	}
 	return nil
 }

@@ -95,6 +95,7 @@
 | Redis 键没有应用前缀 | `Storage.Cache.KeyPrefix`，覆盖缓存、token 存储、限流和验证码；测试机验证所有键均带前缀 | 0468e12 |
 | 菜单按 code 路径查询从第二级起查错；菜单可移到自己的子孙下形成环 | 逐级按上一级菜单查找；拒绝成环的移动 | dff6f09 |
 | PostgreSQL 搜索区分大小写；搜索框中的 `%`、`_` 被当作通配符 | 统一 `LOWER(...) LIKE LOWER(...)` 并转义通配符，三种数据库验证 | 0bddd1a |
+| 按单实例设计：Casbin 靠缓存信号轮询重载，变更延迟数秒、goroutine 泄漏、每个角色单独查询 | 变更提交后在进程内立即重建策略；固定 4 次查询批量构建；启动时先导入 `menu.json` 再加载策略 | 见提交记录 |
 
 ## 仍未处理
 
@@ -113,7 +114,7 @@
 - 依赖注入只完成一半：`BuildInjector` 不接收配置参数，bootstrap 和 wirex 仍读全局 `config.C`。
 - 新增一个模块需要修改多处共享文件；`http.go` 写死了 rbac 模块。
 - `pkg/errors` 的 `As` 签名与标准库冲突，"已存在"类错误返回 400 而非 409。
-- N+1 查询（菜单树、Casbin 加载）；Casbin 的 autoLoad goroutine 在 Release 后泄漏。
+- N+1 查询（菜单树的资源与子菜单加载）。
 - gzip 解析失败时的降级读取会截断请求体。
 - 测试工程：旧的 `test/` 集成测试包绕过中间件，可删除；`pkg/cachex/tmp` 测试目录持续增长。
 

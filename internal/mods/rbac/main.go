@@ -51,9 +51,6 @@ func (a *RBAC) Init(ctx context.Context) error {
 		}
 	}
 
-	if err := a.Casbinx.Load(ctx); err != nil {
-		return err
-	}
 	a.LoggerAPI.LoggerBIZ.StartRetention(ctx)
 
 	if name := a.Config.General.MenuFile; name != "" {
@@ -61,6 +58,12 @@ func (a *RBAC) Init(ctx context.Context) error {
 		if err := a.MenuAPI.MenuBIZ.InitFromFile(ctx, fullPath); err != nil {
 			logging.Context(ctx).Error("failed to init menu data", zap.Error(err), zap.String("file", fullPath))
 		}
+	}
+
+	// Build the policy after importing menu.json, so resources added or
+	// changed there apply from this start on.
+	if err := a.Casbinx.Load(ctx); err != nil {
+		return err
 	}
 
 	return nil

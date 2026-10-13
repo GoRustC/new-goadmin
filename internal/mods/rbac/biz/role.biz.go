@@ -4,17 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/cachex"
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 // Role management for RBAC
 type Role struct {
-	Cache       cachex.Cacher
+	Policy      PolicyReloader
 	Trans       *util.Trans
 	RoleDAL     *dal.Role
 	RoleMenuDAL *dal.RoleMenu
@@ -89,7 +87,7 @@ func (a *Role) Create(ctx context.Context, formItem *schema.RoleForm) (*schema.R
 		return nil, err
 	}
 
-	err := a.execAndSync(ctx, func(ctx context.Context) error {
+	err := a.execAndReload(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Create(ctx, role); err != nil {
 			return err
 		}
@@ -136,7 +134,7 @@ func (a *Role) Update(ctx context.Context, id string, formItem *schema.RoleForm)
 	}
 	role.UpdatedAt = time.Now()
 
-	return a.execAndSync(ctx, func(ctx context.Context) error {
+	return a.execAndReload(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Update(ctx, role); err != nil {
 			return err
 		}
@@ -172,7 +170,7 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	return a.execAndSync(ctx, func(ctx context.Context) error {
+	return a.execAndReload(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Delete(ctx, id); err != nil {
 			return err
 		}
@@ -187,16 +185,12 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 	})
 }
 
-// execAndSync runs fn in a transaction and signals casbin to reload only
-// after the commit. Signalling inside the transaction let the poller load
-// the pre-commit data and then treat the change as handled.
-func (a *Role) execAndSync(ctx context.Context, fn util.TransFunc) error {
+// execAndReload runs fn in a transaction and, once it has committed,
+// rebuilds the authorization policy so the change applies immediately.
+// Reloading inside the transaction would read the pre-commit data.
+func (a *Role) execAndReload(ctx context.Context, fn util.TransFunc) error {
 	if err := a.Trans.Exec(ctx, fn); err != nil {
 		return err
 	}
-	return a.syncToCasbin(ctx)
-}
-
-func (a *Role) syncToCasbin(ctx context.Context) error {
-	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, util.NewXID())
+	return a.Policy.Reload(ctx)
 }

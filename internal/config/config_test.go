@@ -112,8 +112,6 @@ func TestValidateRejects(t *testing.T) {
 	}{
 		{"unknown db type", func(c *Config) { c.Storage.DB.Type = "oracle" }, "Storage.DB.Type"},
 		{"redis cache without addr", func(c *Config) { c.Storage.Cache.Type = "redis" }, "Storage.Cache.Redis.Addr"},
-		{"casbin interval zero", func(c *Config) { c.Middleware.Casbin.AutoLoadInterval = 0 }, "AutoLoadInterval"},
-		{"casbin no threads", func(c *Config) { c.Middleware.Casbin.LoadThread = 0 }, "LoadThread"},
 		{"cert without key", func(c *Config) { c.General.HTTP.CertFile = "cert.pem" }, "KeyFile"},
 		{"known root password", func(c *Config) { c.General.Root.Password = knownDefaultPassword }, "Root.Password"},
 		{"known default password", func(c *Config) { c.General.DefaultLoginPwd = knownDefaultPassword }, "DefaultLoginPwd"},

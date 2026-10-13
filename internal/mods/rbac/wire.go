@@ -11,6 +11,7 @@ import (
 var Set = wire.NewSet(
 	wire.Struct(new(RBAC), "*"),
 	wire.Struct(new(Casbinx), "*"),
+	wire.Bind(new(biz.PolicyReloader), new(*Casbinx)),
 	wire.Struct(new(dal.Menu), "*"),
 	wire.Struct(new(biz.Menu), "*"),
 	wire.Struct(new(api.Menu), "*"),

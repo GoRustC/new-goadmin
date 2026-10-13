@@ -80,8 +80,6 @@ type Middleware struct {
 	Casbin struct {
 		Disable             bool
 		SkippedPathPrefixes []string
-		LoadThread          int    `default:"2"`
-		AutoLoadInterval    int    `default:"3"` // seconds
 		ModelFile           string `default:"rbac_model.conf"`
 	}
 	Static struct {

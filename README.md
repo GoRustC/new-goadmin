@@ -47,7 +47,7 @@
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
 - 只有 root 能重置他人密码或在编辑用户时设置新密码，其他管理员返回 403（`com.rbac.root-only`）。
 - 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
-- 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
+- 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、Casbin 的 `AutoLoadInterval` 和 `LoadThread`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
 ## 环境要求
 
@@ -148,7 +148,7 @@ sudo systemctl enable --now ginadmin
 
 - **认证**：JWT（HS512）。登出、改密码、管理员设置或重置密码都会使相关 token 失效；刷新 token 时旧 token 作废；会话自登录起最长 7 天，刷新不能延长。
 - **登录防护**：图形验证码；同一账号名连续失败 5 次锁定 15 分钟（`General.LoginLock`），不存在的账号名同样计数；错误提示和响应时间不暴露账号是否存在。
-- **授权**：Casbin 按"角色 → 菜单 → 接口"控制访问，权限变更无需重启即生效。非 root 管理员只能授予和管理不超过自身菜单范围的角色与用户，不能通过用户管理修改自己。
+- **授权**：Casbin 按"角色 → 菜单 → 接口"控制访问；角色或菜单变更提交后立即在进程内重建策略，下一个请求即生效。非 root 管理员只能授予和管理不超过自身菜单范围的角色与用户，不能通过用户管理修改自己。
 - **root 账号**：来自配置而非数据库，不受权限控制。生产环境应使用强密码，必要时把 `GINADMIN_ROOT_PASSWORD` 设为空以禁用。
 - **其他**：限流（按 IP 与按用户）、请求体与 gzip 解压大小限制、安全响应头、日志中的密码与 token 脱敏、操作日志保留 90 天。
 

@@ -771,3 +771,23 @@ func TestPasswordResetIsRootOnly(t *testing.T) {
 		userForm("rpl"+s, "New-Pass-9", "activated", lowRole)), http.StatusOK)
 	mustLogin(t, "rpl"+s, "New-Pass-9")
 }
+
+// Single-instance design: role changes rebuild the policy as soon as they
+// commit, so they apply to the very next request, with no polling delay.
+func TestPermissionChangesApplyImmediately(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	userPage, loggerPage := menuID(t, "user"), menuID(t, "logger")
+	roleID := createRole(t, root, "imm"+s, userPage)
+	createUser(t, root, "imm"+s, "Pass-1", roleID)
+	token := mustLogin(t, "imm"+s, "Pass-1")
+
+	expectStatus(t, "granted at once", call(t, http.MethodGet, "/api/v1/users", token, nil), http.StatusOK)
+	expectStatus(t, "not yet granted", call(t, http.MethodGet, "/api/v1/loggers", token, nil), http.StatusForbidden)
+
+	expectStatus(t, "grant loggers", call(t, http.MethodPut, "/api/v1/roles/"+roleID, root, roleForm("imm"+s, userPage, loggerPage)), http.StatusOK)
+	expectStatus(t, "grant applies to the next request", call(t, http.MethodGet, "/api/v1/loggers", token, nil), http.StatusOK)
+
+	expectStatus(t, "revoke everything", call(t, http.MethodPut, "/api/v1/roles/"+roleID, root, roleForm("imm"+s)), http.StatusOK)
+	expectStatus(t, "revoke applies to the next request", call(t, http.MethodGet, "/api/v1/users", token, nil), http.StatusForbidden)
+}

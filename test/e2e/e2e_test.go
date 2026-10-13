@@ -98,7 +98,6 @@ func TestMain(m *testing.M) {
 	}
 	config.MustLoad("../../configs", "prod")
 	config.C.General.WorkDir = "../../configs"
-	config.C.Middleware.Casbin.AutoLoadInterval = 1 // see permission changes quickly
 	// The suite sends thousands of requests from one address; rate limiting
 	// is covered by its own tests in pkg/middleware.
 	config.C.Middleware.RateLimiter.Enable = false
