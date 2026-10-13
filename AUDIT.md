@@ -84,25 +84,36 @@
 | 没有 CI | GitHub Actions：格式、vet、竞态测试、漏洞扫描、MySQL 与 PostgreSQL 端到端测试 | 400127c |
 | 没有 README 和部署文件 | README、systemd 服务、环境变量模板、nginx 示例；测试机按此部署验证 | 6276817 |
 
+## 底座优化（第四轮）
+
+| 问题 | 处理 | 提交 |
+|---|---|---|
+| 跳过鉴权的路径是裸前缀匹配 | 按路径段匹配，`/api/v1/login` 不再覆盖 `/api/v1/login-history` | 110dd23 |
+| 会话可通过刷新无限续期 | token 带 `auth_time`，自密码登录起最长 7 天（`MaxSessionHours`） | 9c101d2 |
+| 生产模式接受明文 MD5 root 密码；`OldSigningKey` 不校验长度；可关闭 Casbin；pprof 可绑公网 | 生产模式要求 bcrypt（新增 `ginadmin hash-password`），旧密钥至少 32 字节，拒绝关闭 Casbin 和非回环 pprof | 9ccd0c0 |
+| 启动失败以 panic 退出；`start` 默认 dev 配置；`stop` 不校验进程号 | 输出一行错误并以 1 退出，失败时清理并刷出日志；`-c` 必填；`stop` 校验 pid、发信号成功后才删锁文件 | 3b4f54b |
+| Redis 键没有应用前缀 | `Storage.Cache.KeyPrefix`，覆盖缓存、token 存储、限流和验证码；测试机验证所有键均带前缀 | 0468e12 |
+| 菜单按 code 路径查询从第二级起查错；菜单可移到自己的子孙下形成环 | 逐级按上一级菜单查找；拒绝成环的移动 | dff6f09 |
+| PostgreSQL 搜索区分大小写；搜索框中的 `%`、`_` 被当作通配符 | 统一 `LOWER(...) LIKE LOWER(...)` 并转义通配符，三种数据库验证 | 0bddd1a |
+
 ## 仍未处理
 
-**需要决定**
+**需要决定或配合**
 - 与前端联调。
 - 重置密码接口开放给哪个菜单（`configs/menu.json`）。
-- 下游采用 fork 还是作为库引入（决定骨架是否移出 `internal/`，必须修第 10 项的剩余部分）。
+- 下游采用 fork 还是作为库引入（决定骨架是否移出 `internal/`）。
 
-**安全，建议后续处理**
+**安全**
 - 菜单资源可注入 Casbin 策略（仅当 `DenyOperateMenu=false`，生产样例为 true）。
-- 会话没有绝对时长上限：刷新会作废旧 token，但可以持续刷新。
-- `OldSigningKey` 没有长度校验；非 debug 模式仍接受明文 MD5 的 root 密码；`start` 默认 `-c dev`。
-- 跳过鉴权的路径列表是裸前缀匹配。
-- 生产校验未拒绝 `Casbin.Disable=true`、非回环的 `PprofAddr`。
 
 **运维与结构**
-- 启动失败时以 panic 退出，日志 hook 未清理。
 - 多实例首次同时启动的建表与菜单导入冲突（README 要求先启动一个实例）。
-- Redis 键没有应用级前缀。
-- 第二轮"建议修"中代码与结构、数据库差异、测试工程类条目，除上表已处理的外均未改动。
+- 依赖注入只完成一半：`BuildInjector` 不接收配置参数，bootstrap 和 wirex 仍读全局 `config.C`。
+- 新增一个模块需要修改多处共享文件；`http.go` 写死了 rbac 模块。
+- `pkg/errors` 的 `As` 签名与标准库冲突，"已存在"类错误返回 400 而非 409。
+- N+1 查询（菜单树、Casbin 加载）；Casbin 的 autoLoad goroutine 在 Release 后泄漏。
+- gzip 解析失败时的降级读取会截断请求体。
+- 测试工程：旧的 `test/` 集成测试包绕过中间件，可删除；`pkg/cachex/tmp` 测试目录持续增长。
 
 ---
 
