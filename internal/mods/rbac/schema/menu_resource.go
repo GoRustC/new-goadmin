@@ -1,8 +1,10 @@
 package schema
 
 import (
+	"regexp"
 	"time"
 
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -47,5 +49,27 @@ func (a *MenuResourceForm) Validate() error {
 }
 
 func (a *MenuResourceForm) FillTo(menuResource *MenuResource) error {
+	return nil
+}
+
+// Methods a menu resource may use.
+var allowedResourceMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true, "OPTIONS": true,
+}
+
+// resourcePathPattern allows route paths with :param, {param} and *
+// wildcards. Commas, quotes, whitespace and line breaks are rejected: the
+// casbin policy is assembled as "p, role, path, method" lines, so they could
+// inject extra rules or break parsing.
+var resourcePathPattern = regexp.MustCompile(`^/[A-Za-z0-9/_\-.:{}*~]*$`)
+
+// Validate checks the method and path before they become a policy rule.
+func (a *MenuResource) Validate() error {
+	if !allowedResourceMethods[a.Method] {
+		return errors.BadRequest("", "Invalid resource method %q", a.Method)
+	}
+	if len(a.Path) > 255 || !resourcePathPattern.MatchString(a.Path) {
+		return errors.BadRequest("", "Invalid resource path %q", a.Path)
+	}
 	return nil
 }

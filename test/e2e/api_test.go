@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -790,4 +791,35 @@ func TestPermissionChangesApplyImmediately(t *testing.T) {
 
 	expectStatus(t, "revoke everything", call(t, http.MethodPut, "/api/v1/roles/"+roleID, root, roleForm("imm"+s)), http.StatusOK)
 	expectStatus(t, "revoke applies to the next request", call(t, http.MethodGet, "/api/v1/users", token, nil), http.StatusForbidden)
+}
+
+// Menu resources become casbin policy lines. A path with a line break or a
+// comma could add rules or break policy parsing.
+func TestMenuResourceInjectionIsRejected(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	withMenuWrites(t)
+	s := unique()
+
+	form := menuForm("inj"+s, "")
+	form["resources"] = []map[string]string{{"method": "GET", "path": "/x\np, anyrole, /api/v1/*, DELETE"}}
+	expectStatus(t, "injection through the API", call(t, http.MethodPost, "/api/v1/menus", root, form), http.StatusBadRequest)
+
+	// A malicious row written straight to the database is skipped when the
+	// policy is built: the role keeps its legitimate grant and gains nothing.
+	userPage := menuID(t, "user")
+	bad := schema.MenuResource{ID: "inj" + s[len(s)-10:], MenuID: userPage, Method: "GET", Path: "/x\np, %s, /api/v1/loggers, GET"}
+	roleID := createRole(t, root, "inj"+s, userPage)
+	bad.Path = strings.Replace(bad.Path, "%s", roleID, 1)
+	if err := injector.DB.Create(&bad).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { injector.DB.Delete(&schema.MenuResource{}, "id = ?", bad.ID) })
+	if err := injector.M.RBAC.Casbinx.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	createUser(t, root, "inj"+s, "Pass-1", roleID)
+	token := mustLogin(t, "inj"+s, "Pass-1")
+	expectStatus(t, "legitimate grant still works", call(t, http.MethodGet, "/api/v1/users", token, nil), http.StatusOK)
+	expectStatus(t, "injected rule has no effect", call(t, http.MethodGet, "/api/v1/loggers", token, nil), http.StatusForbidden)
 }

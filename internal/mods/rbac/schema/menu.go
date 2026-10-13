@@ -156,6 +156,11 @@ func (a *MenuForm) Validate() error {
 			return errors.BadRequest("", "invalid properties")
 		}
 	}
+	for _, r := range a.Resources {
+		if err := r.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

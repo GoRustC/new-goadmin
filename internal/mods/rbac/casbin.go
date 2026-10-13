@@ -167,6 +167,13 @@ func (a *Casbinx) buildPolicy(ctx context.Context) (policy string, roles, rules 
 		var lines []string
 		for menuID := range granted {
 			for _, r := range resources[menuID] {
+				// Second line of defense for rows that bypassed the API,
+				// e.g. written to the database directly.
+				if err := r.Validate(); err != nil {
+					logging.Context(ctx).Warn("Skipping invalid menu resource",
+						zap.String("menu_id", r.MenuID), zap.String("method", r.Method), zap.String("path", r.Path))
+					continue
+				}
 				// No trailing whitespace: the string adapter does not trim
 				// lines, so "GET " would never match a request method.
 				line := fmt.Sprintf("p, %s, %s, %s", role.ID, r.Path, r.Method)
