@@ -28,7 +28,7 @@ ID = "root"
 Username = "admin"
 # MD5 hash as sent by the frontend, or a bcrypt hash of it; empty disables root login.
 # MD5("abc-123") is accepted in debug mode only. In production, inject it through an
-# environment variable reference (syntax documented in internal/config/validate.go).
+# environment variable reference (syntax documented in internal/config/env.go).
 Password = "6351623c8cef86fefabfa7da046fc619"
 Name = "Admin"
 

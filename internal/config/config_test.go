@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,36 +11,81 @@ import (
 
 func TestExpandEnv(t *testing.T) {
 	t.Setenv("GINADMIN_TEST_SET", "from-env")
+	t.Setenv("GINADMIN_TEST_TRICKY", `p"a\tss\word ${not-a-ref}`)
 
-	tests := []struct {
-		name    string
-		in      string
-		want    string
-		wantErr bool
-	}{
-		{name: "set variable", in: `Key = "${GINADMIN_TEST_SET}"`, want: `Key = "from-env"`},
-		{name: "set variable ignores default", in: `Key = "${GINADMIN_TEST_SET:-fallback}"`, want: `Key = "from-env"`},
-		{name: "unset variable uses default", in: `Key = "${GINADMIN_TEST_UNSET:-fallback}"`, want: `Key = "fallback"`},
-		{name: "unset variable empty default", in: `Key = "${GINADMIN_TEST_UNSET:-}"`, want: `Key = ""`},
-		{name: "unset variable without default", in: `Key = "${GINADMIN_TEST_UNSET}"`, wantErr: true},
-		{name: "bcrypt hash untouched", in: `Password = "$2a$10$abcdefghijklmnopqrstuv"`, want: `Password = "$2a$10$abcdefghijklmnopqrstuv"`},
+	type hook struct{ Options map[string]string }
+	type conf struct {
+		Plain    string
+		Set      string
+		Default  string
+		Empty    string
+		Bcrypt   string
+		Tricky   string
+		List     []string
+		Hooks    []*hook
+		unexport string
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := expandEnv([]byte(tt.in))
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected an error, got %q", got)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if string(got) != tt.want {
-				t.Fatalf("got %q, want %q", got, tt.want)
-			}
-		})
+	c := &conf{
+		Plain:    "no references",
+		Set:      "x-${GINADMIN_TEST_SET}-y",
+		Default:  "${GINADMIN_TEST_UNSET:-fallback}",
+		Empty:    "${GINADMIN_TEST_UNSET:-}",
+		Bcrypt:   "$2a$10$abcdefghijklmnopqrstuv",
+		Tricky:   "${GINADMIN_TEST_TRICKY}",
+		List:     []string{"${GINADMIN_TEST_SET}"},
+		Hooks:    []*hook{{Options: map[string]string{"DSN": "${GINADMIN_TEST_SET}"}}},
+		unexport: "${GINADMIN_TEST_SET}",
+	}
+	if err := ExpandEnv(c); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][2]string{
+		"plain":   {c.Plain, "no references"},
+		"set":     {c.Set, "x-from-env-y"},
+		"default": {c.Default, "fallback"},
+		"empty":   {c.Empty, ""},
+		"bcrypt":  {c.Bcrypt, "$2a$10$abcdefghijklmnopqrstuv"},
+		// Values are used verbatim: quotes, backslashes and even ${...} inside
+		// a value are not interpreted again.
+		"tricky": {c.Tricky, `p"a\tss\word ${not-a-ref}`},
+		"slice":  {c.List[0], "from-env"},
+		"map":    {c.Hooks[0].Options["DSN"], "from-env"},
+	}
+	for name, w := range want {
+		if w[0] != w[1] {
+			t.Errorf("%s: got %q, want %q", name, w[0], w[1])
+		}
+	}
+	if c.unexport != "${GINADMIN_TEST_SET}" {
+		t.Error("unexported fields must be left alone")
+	}
+
+	missing := &conf{Hooks: []*hook{{Options: map[string]string{"DSN": "${GINADMIN_TEST_MISSING}"}}}}
+	err := ExpandEnv(missing)
+	if err == nil || !strings.Contains(err.Error(), "GINADMIN_TEST_MISSING (Hooks[0].Options[DSN])") {
+		t.Fatalf("missing variable should name the variable and field, got: %v", err)
+	}
+}
+
+// Environment values used to be spliced into the TOML text before parsing, so
+// a quote in a password broke the file and ${...} in comments was required.
+func TestLoadExpandsAfterParsing(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "server.toml")
+	content := "# A comment mentioning ${GINADMIN_TEST_UNSET_IN_COMMENT} is ignored.\n" +
+		"[Storage.Cache.Redis]\nPassword = \"${GINADMIN_TEST_REDIS_PW}\"\n"
+	if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GINADMIN_TEST_REDIS_PW", `a"b\nc`)
+
+	*C = Config{}
+	t.Cleanup(func() { *C = Config{} })
+	if err := Load(dir, "server.toml"); err != nil {
+		t.Fatal(err)
+	}
+	if got := C.Storage.Cache.Redis.Password; got != `a"b\nc` {
+		t.Fatalf("password: got %q", got)
 	}
 }
 

@@ -3,42 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
-	"os"
-	"regexp"
 	"slices"
 )
 
 // knownDefaultPassword is MD5("abc-123"), the password shipped in earlier
 // versions of this project for the root account and for new or reset users.
 const knownDefaultPassword = "6351623c8cef86fefabfa7da046fc619"
-
-// envRefPattern matches ${NAME} and ${NAME:-default}. The bare $NAME form is
-// deliberately not supported so values such as bcrypt hashes stay untouched.
-var envRefPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}`)
-
-// expandEnv replaces ${NAME} and ${NAME:-default} references with environment
-// variable values. A reference to an unset variable without a default is an
-// error, so a missing secret fails loudly instead of becoming an empty string.
-func expandEnv(buf []byte) ([]byte, error) {
-	var missing []string
-	out := envRefPattern.ReplaceAllFunc(buf, func(ref []byte) []byte {
-		// Group 1 is the name, group 2 the default; index -1 means no default.
-		idx := envRefPattern.FindSubmatchIndex(ref)
-		name := string(ref[idx[2]:idx[3]])
-		if v, ok := os.LookupEnv(name); ok {
-			return []byte(v)
-		}
-		if idx[4] >= 0 {
-			return ref[idx[4]:idx[5]]
-		}
-		missing = append(missing, name)
-		return ref
-	})
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("environment variables not set: %v", missing)
-	}
-	return out, nil
-}
 
 // Validate checks the loaded configuration and reports every problem found.
 func (c *Config) Validate() error {

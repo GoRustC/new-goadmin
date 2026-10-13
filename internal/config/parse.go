@@ -45,11 +45,6 @@ func Load(dir string, names ...string) error {
 			return errors.Wrapf(err, "failed to read config file %s", name)
 		}
 
-		buf, err = expandEnv(buf)
-		if err != nil {
-			return errors.Wrapf(err, "failed to expand config file %s", name)
-		}
-
 		switch ext {
 		case ".json":
 			err = json.Unmarshal(buf, C)
@@ -85,5 +80,11 @@ func Load(dir string, names ...string) error {
 		}
 	}
 
+	// Expand environment references in the parsed values, not in the file
+	// text: comments are ignored and values containing quotes or backslashes
+	// cannot break the TOML or JSON syntax.
+	if err := ExpandEnv(C); err != nil {
+		return errors.Wrap(err, "failed to expand environment variables in config")
+	}
 	return nil
 }
