@@ -362,3 +362,41 @@ func TestMenusAndLoggers(t *testing.T) {
 	expectStatus(t, "query loggers by user and time", call(t, http.MethodGet,
 		"/api/v1/loggers?current=1&pageSize=5&userName=admin&startTime=2020-01-01+00:00:00&endTime=2099-01-01+00:00:00", root, nil), http.StatusOK)
 }
+
+// The captcha library's default store deadlocked when one captcha was
+// verified by many requests at once, after which no one could log in.
+func TestConcurrentCaptchaVerification(t *testing.T) {
+	const rounds, concurrency = 200, 32
+	for round := 0; round < rounds; round++ {
+		id, _ := newCaptcha(t)
+		body := map[string]string{"username": "x", "password": "x", "captcha_id": id, "captcha_code": "0000"}
+		done := make(chan struct{})
+		for i := 0; i < concurrency; i++ {
+			go func() {
+				defer func() { done <- struct{}{} }()
+				b, _ := json.Marshal(body)
+				res, err := http.Post(server.URL+"/api/v1/login", "application/json", bytes.NewReader(b))
+				if err == nil {
+					res.Body.Close()
+				}
+			}()
+		}
+		for i := 0; i < concurrency; i++ {
+			select {
+			case <-done:
+			case <-time.After(10 * time.Second):
+				t.Fatalf("round %d: login requests hung", round)
+			}
+		}
+	}
+
+	ch := make(chan response, 1)
+	go func() { ch <- call(t, http.MethodGet, "/api/v1/captcha/id", "", nil) }()
+	select {
+	case r := <-ch:
+		expectStatus(t, "captcha after concurrent verification", r, http.StatusOK)
+	case <-time.After(10 * time.Second):
+		t.Fatal("captcha endpoint hung after concurrent verification")
+	}
+	mustLogin(t, "admin", rootPassword)
+}

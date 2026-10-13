@@ -74,9 +74,15 @@ AutoMigrate = true # Creates and extends tables; never drops columns
 Length = 4
 Width = 400
 Height = 160
-# Captchas are kept in process memory. With more than one instance, route a
-# client's captcha and login requests to the same instance (sticky sessions).
-CacheType = "memory"
+# Captchas are stored in Redis, so any instance can verify them.
+CacheType = "redis"
+
+[Util.Captcha.Redis]
+Addr = "" # Empty uses Storage.Cache.Redis
+Username = ""
+Password = ""
+DB = 1
+KeyPrefix = "captcha:"
 
 [Dictionary]
 UserCacheExp = 4 # hours

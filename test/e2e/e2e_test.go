@@ -33,6 +33,7 @@ import (
 	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
 	"github.com/LyricTian/gin-admin/v10/internal/wirex"
 	"github.com/LyricTian/gin-admin/v10/pkg/cachex"
+	"github.com/LyricTian/gin-admin/v10/pkg/captchax"
 	"github.com/LyricTian/gin-admin/v10/pkg/crypto/hash"
 	"github.com/LyricTian/gin-admin/v10/pkg/jwtx"
 	"github.com/LyricTian/gin-admin/v10/pkg/middleware"
@@ -44,7 +45,7 @@ var (
 	withRedis bool
 	server    *httptest.Server
 	injector  *wirex.Injector
-	captchas  = &recordingStore{Store: store.NewMemoryStore(time.Second, captcha.Expiration), digits: map[string]string{}}
+	captchas  *recordingStore
 )
 
 // recordingStore keeps a copy of each captcha's digits so the test can answer
@@ -101,13 +102,12 @@ func TestMain(m *testing.M) {
 	if !withRedis {
 		config.C.Storage.Cache.Type = "memory"
 		config.C.Middleware.Auth.Store.Type = "memory"
+		config.C.Util.Captcha.CacheType = "memory"
 	}
 	config.C.PreLoad()
 	if err := config.C.Validate(); err != nil {
 		panic(err)
 	}
-
-	captcha.SetCustomStore(captchas)
 
 	ctx := context.Background()
 	inj, cleanup, err := wirex.BuildInjector(ctx)
@@ -117,6 +117,18 @@ func TestMain(m *testing.M) {
 	if err := inj.M.Init(ctx); err != nil {
 		panic(err)
 	}
+
+	// Init installed the configured captcha store; wrap the same kind of store
+	// so the test can read answers while still exercising it.
+	var inner store.Store = captchax.NewMemoryStore(captcha.Expiration)
+	if c := config.C.Util.Captcha; c.CacheType == "redis" {
+		inner = captchax.NewRedisStore(captchax.RedisConfig{
+			Addr: c.Redis.Addr, Username: c.Redis.Username, Password: c.Redis.Password,
+			DB: c.Redis.DB, KeyPrefix: c.Redis.KeyPrefix,
+		}, captcha.Expiration)
+	}
+	captchas = &recordingStore{Store: inner, digits: map[string]string{}}
+	captcha.SetCustomStore(captchas)
 	handler, err := bootstrap.NewHTTPHandler(ctx, inj)
 	if err != nil {
 		panic(err)
