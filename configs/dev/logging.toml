@@ -1,7 +1,7 @@
 [Logger]
 Debug = true
 Level = "debug" # debug/info/warn/error/dpanic/panic/fatal
-CallerSkip = 1
+CallerSkip = 0
 
 [Logger.File]
 Enable = false

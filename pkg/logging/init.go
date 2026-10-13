@@ -101,10 +101,10 @@ func InitWithConfig(ctx context.Context, cfg *LoggerConfig, hookHandle ...HookHa
 		logger = ilogger
 	}
 
-	skip := cfg.CallerSkip
-	if skip <= 0 {
-		skip = 2
-	}
+	// Callers log through the *zap.Logger returned by Context, so 0 reports
+	// the calling line. Wrappers that log on behalf of their caller should
+	// add their own AddCallerSkip.
+	skip := max(cfg.CallerSkip, 0)
 
 	logger = logger.WithOptions(
 		zap.WithCaller(true),

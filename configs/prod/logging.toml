@@ -1,7 +1,7 @@
 [Logger]
 Debug = false
 Level = "info" # debug/info/warn/error
-CallerSkip = 1
+CallerSkip = 0
 
 # Logs go to stdout as JSON. Enable the file output only if nothing collects stdout.
 [Logger.File]
