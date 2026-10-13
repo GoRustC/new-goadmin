@@ -2,29 +2,23 @@ package middleware
 
 import (
 	"fmt"
-	"mime"
-	"net/http"
 	"time"
 
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 type LoggerConfig struct {
-	AllowedPathPrefixes      []string
-	SkippedPathPrefixes      []string
-	MaxOutputRequestBodyLen  int
-	MaxOutputResponseBodyLen int
+	AllowedPathPrefixes []string
+	SkippedPathPrefixes []string
 }
 
-var DefaultLoggerConfig = LoggerConfig{
-	MaxOutputRequestBodyLen:  1024 * 1024,
-	MaxOutputResponseBodyLen: 1024 * 1024,
-}
+var DefaultLoggerConfig = LoggerConfig{}
 
-// Record detailed request logs for quick troubleshooting.
+// Record request metadata for quick troubleshooting.
+// Request and response bodies are intentionally not logged: they may carry
+// credentials (login passwords, access tokens) that must never reach log storage.
 func Logger() gin.HandlerFunc {
 	return LoggerWithConfig(DefaultLoggerConfig)
 }
@@ -57,28 +51,11 @@ func LoggerWithConfig(config LoggerConfig) gin.HandlerFunc {
 
 		c.Next()
 
-		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut {
-			mediaType, _, _ := mime.ParseMediaType(contentType)
-			if mediaType == "application/json" {
-				if v, ok := c.Get(util.ReqBodyKey); ok {
-					if b, ok := v.([]byte); ok && len(b) <= config.MaxOutputRequestBodyLen {
-						fields = append(fields, zap.String("body", string(b)))
-					}
-				}
-			}
-		}
-
 		cost := time.Since(start).Nanoseconds() / 1e6
 		fields = append(fields, zap.Int64("cost", cost))
 		fields = append(fields, zap.Int("status", c.Writer.Status()))
 		fields = append(fields, zap.String("res_time", time.Now().Format("2006-01-02 15:04:05.999")))
 		fields = append(fields, zap.Int("res_size", c.Writer.Size()))
-
-		if v, ok := c.Get(util.ResBodyKey); ok {
-			if b, ok := v.([]byte); ok && len(b) <= config.MaxOutputResponseBodyLen {
-				fields = append(fields, zap.String("res_body", string(b)))
-			}
-		}
 
 		ctx := c.Request.Context()
 		ctx = logging.NewTag(ctx, logging.TagKeyRequest)

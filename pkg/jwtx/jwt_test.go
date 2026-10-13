@@ -13,7 +13,7 @@ func TestAuth(t *testing.T) {
 
 	store := NewStoreWithCache(cache)
 	ctx := context.Background()
-	jwtAuth := New(store)
+	jwtAuth := New(store, SetSigningKey("test-signing-key-0123456789abcdef", ""))
 
 	userID := "test"
 	token, err := jwtAuth.GenerateToken(ctx, userID)

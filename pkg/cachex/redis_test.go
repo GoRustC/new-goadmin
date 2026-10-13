@@ -3,16 +3,23 @@ package cachex
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// Set REDIS_ADDR (e.g. localhost:6379) to run this test against a real Redis.
 func TestRedisCache(t *testing.T) {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		t.Skip("REDIS_ADDR not set, skipping redis cache test")
+	}
+
 	assert := assert.New(t)
 
 	cache := NewRedisCache(RedisConfig{
-		Addr: "localhost:6379",
+		Addr: addr,
 		DB:   1,
 	})
 

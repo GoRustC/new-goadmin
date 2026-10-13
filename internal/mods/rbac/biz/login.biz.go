@@ -127,12 +127,6 @@ func (a *Login) genUserToken(ctx context.Context, userID string) (*schema.LoginT
 		return nil, err
 	}
 
-	tokenBuf, err := token.EncodeToJSON()
-	if err != nil {
-		return nil, err
-	}
-	logging.Context(ctx).Info("Generate user token", zap.Any("token", string(tokenBuf)))
-
 	return &schema.LoginToken{
 		AccessToken: token.GetAccessToken(),
 		TokenType:   token.GetTokenType(),

@@ -73,14 +73,5 @@ Password = ""
 DB = 1
 KeyPrefix = "captcha:"
 
-[Util.Prometheus]
-Enable = false
-Port = 9100
-BasicUsername = "admin"
-BasicPassword = "admin"
-LogApis = [] # Log APIs, e.g. ["/api/v1/users"]
-LogMethods = [] # Log HTTP methods, e.g. ["GET"]
-DefaultCollect = true
-
 [Dictionary]
 UserCacheExp = 4 # hours

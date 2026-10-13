@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/LyricTian/gin-admin/v10/pkg/encoding/json"
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
@@ -95,15 +96,6 @@ type Util struct {
 			KeyPrefix string `default:"captcha:"`
 		}
 	}
-	Prometheus struct {
-		Enable         bool
-		Port           int    `default:"9100"`
-		BasicUsername  string `default:"admin"`
-		BasicPassword  string `default:"admin"`
-		LogApis        []string
-		LogMethods     []string
-		DefaultCollect bool
-	}
 }
 
 type Dictionary struct {
@@ -114,12 +106,75 @@ func (c *Config) IsDebug() bool {
 	return c.General.Debug
 }
 
+// String returns the configuration as indented JSON with secrets masked, so it
+// is safe to print or log.
 func (c *Config) String() string {
-	b, err := json.MarshalIndent(c, "", "  ")
+	b, err := json.Marshal(c)
 	if err != nil {
 		panic("Failed to marshal config: " + err.Error())
 	}
-	return string(b)
+
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		panic("Failed to unmarshal config: " + err.Error())
+	}
+	redactSecrets(v)
+
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic("Failed to marshal config: " + err.Error())
+	}
+	return string(out)
+}
+
+const redactedValue = "******"
+
+// Lowercased substrings of config keys whose values must never be printed.
+// DSN, Sources and Replicas are connection strings that embed credentials.
+var sensitiveKeyParts = []string{"password", "pwd", "secret", "signingkey", "dsn", "sources", "replicas"}
+
+func isSensitiveKey(key string) bool {
+	k := strings.ToLower(key)
+	for _, part := range sensitiveKeyParts {
+		if strings.Contains(k, part) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactSecrets(v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			if isSensitiveKey(k) {
+				t[k] = maskValue(val)
+				continue
+			}
+			redactSecrets(val)
+		}
+	case []any:
+		for _, item := range t {
+			redactSecrets(item)
+		}
+	}
+}
+
+func maskValue(v any) any {
+	switch t := v.(type) {
+	case string:
+		if t == "" {
+			return t
+		}
+		return redactedValue
+	case []any:
+		for i, item := range t {
+			t[i] = maskValue(item)
+		}
+		return t
+	default:
+		return v
+	}
 }
 
 func (c *Config) PreLoad() {

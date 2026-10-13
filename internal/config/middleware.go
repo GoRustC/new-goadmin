@@ -24,9 +24,7 @@ type Middleware struct {
 		ResponseTraceKey    string `default:"X-Trace-Id"`
 	}
 	Logger struct {
-		SkippedPathPrefixes      []string
-		MaxOutputRequestBodyLen  int `default:"4096"`
-		MaxOutputResponseBodyLen int `default:"1024"`
+		SkippedPathPrefixes []string
 	}
 	CopyBody struct {
 		SkippedPathPrefixes []string
@@ -35,8 +33,8 @@ type Middleware struct {
 	Auth struct {
 		Disable             bool
 		SkippedPathPrefixes []string
-		SigningMethod       string `default:"HS512"`    // HS256/HS384/HS512
-		SigningKey          string `default:"XnEsT0S@"` // secret key
+		SigningMethod       string `default:"HS512"` // HS256/HS384/HS512
+		SigningKey          string // secret key, no default; required outside debug mode, at least 32 bytes
 		OldSigningKey       string // old secret key (for migration)
 		Expired             int    `default:"86400"` // seconds
 		Store               struct {

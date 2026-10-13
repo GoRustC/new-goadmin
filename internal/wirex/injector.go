@@ -2,6 +2,10 @@ package wirex
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/LyricTian/gin-admin/v10/internal/config"
@@ -9,9 +13,47 @@ import (
 	"github.com/LyricTian/gin-admin/v10/pkg/cachex"
 	"github.com/LyricTian/gin-admin/v10/pkg/gormx"
 	"github.com/LyricTian/gin-admin/v10/pkg/jwtx"
+	"github.com/LyricTian/gin-admin/v10/pkg/logging"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
+
+const minSigningKeyLen = 32
+
+// Keys that were shipped in earlier versions of this project. They are public,
+// so any token signed with them can be forged.
+var knownDefaultSigningKeys = map[string]struct{}{
+	"XnEsT0S@":             {},
+	"CG24SDVP8OHPK395GB5G": {},
+}
+
+// resolveSigningKeys validates the configured JWT keys. An empty key is only
+// tolerated in debug mode, where a random per-run key is generated instead.
+func resolveSigningKeys(ctx context.Context, key, oldKey string) (string, string, error) {
+	if _, ok := knownDefaultSigningKeys[oldKey]; ok {
+		return "", "", errors.New("config Middleware.Auth.OldSigningKey is a publicly known default value, remove it")
+	}
+
+	if key == "" {
+		if !config.C.IsDebug() {
+			return "", "", fmt.Errorf("config Middleware.Auth.SigningKey is required (at least %d bytes)", minSigningKeyLen)
+		}
+		b := make([]byte, minSigningKeyLen)
+		if _, err := rand.Read(b); err != nil {
+			return "", "", err
+		}
+		logging.Context(ctx).Warn("Middleware.Auth.SigningKey is empty, using a random key for this debug run; issued tokens will not survive a restart")
+		return hex.EncodeToString(b), oldKey, nil
+	}
+
+	if _, ok := knownDefaultSigningKeys[key]; ok {
+		return "", "", errors.New("config Middleware.Auth.SigningKey is a publicly known default value, set your own")
+	}
+	if len(key) < minSigningKeyLen {
+		return "", "", fmt.Errorf("config Middleware.Auth.SigningKey must be at least %d bytes", minSigningKeyLen)
+	}
+	return key, oldKey, nil
+}
 
 type Injector struct {
 	DB    *gorm.DB
@@ -88,9 +130,14 @@ func InitCacher(ctx context.Context) (cachex.Cacher, func(), error) {
 
 func InitAuth(ctx context.Context) (jwtx.Auther, func(), error) {
 	cfg := config.C.Middleware.Auth
+	signingKey, oldSigningKey, err := resolveSigningKeys(ctx, cfg.SigningKey, cfg.OldSigningKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var opts []jwtx.Option
 	opts = append(opts, jwtx.SetExpired(cfg.Expired))
-	opts = append(opts, jwtx.SetSigningKey(cfg.SigningKey, cfg.OldSigningKey))
+	opts = append(opts, jwtx.SetSigningKey(signingKey, oldSigningKey))
 
 	var method jwt.SigningMethod
 	switch cfg.SigningMethod {

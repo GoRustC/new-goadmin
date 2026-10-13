@@ -44,7 +44,11 @@ func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 		if c.GetHeader("Content-Encoding") == "gzip" {
 			if reader, ierr := gzip.NewReader(safe); ierr == nil {
 				isGzip = true
-				requestBody, err = io.ReadAll(reader)
+				// MaxBytesReader only bounds the compressed stream; bound the
+				// decompressed output too, otherwise a small gzip bomb can
+				// allocate unbounded memory before authentication runs.
+				requestBody, err = readAllLimited(reader, config.MaxContentLen)
+				_ = reader.Close()
 			}
 		}
 
@@ -63,4 +67,16 @@ func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 		c.Set(util.ReqBodyKey, requestBody)
 		c.Next()
 	}
+}
+
+// readAllLimited reads at most limit bytes from r and fails if r holds more.
+func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, errors.Errorf("decompressed body exceeds %d bytes", limit)
+	}
+	return b, nil
 }

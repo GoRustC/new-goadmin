@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" //nolint:gosec
+	"net/http/pprof"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/LyricTian/gin-admin/v10/internal/config"
 	_ "github.com/LyricTian/gin-admin/v10/internal/swagger"
-	"github.com/LyricTian/gin-admin/v10/internal/utility/prom"
 	"github.com/LyricTian/gin-admin/v10/internal/wirex"
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
@@ -57,12 +57,24 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 		zap.String("static", staticDir),
 	)
 
-	// Start pprof server.
+	// Start pprof server on a private mux so its handlers are only reachable
+	// on PprofAddr and never leak through http.DefaultServeMux.
 	if addr := config.C.General.PprofAddr; addr != "" {
 		logging.Context(ctx).Info("pprof server is listening on " + addr)
 		go func() {
-			err := http.ListenAndServe(addr, nil)
-			if err != nil {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+			srv := &http.Server{
+				Addr:              addr,
+				Handler:           mux,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logging.Context(ctx).Error("failed to listen pprof server", zap.Error(err))
 			}
 		}()
@@ -77,9 +89,6 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 	if err := injector.M.Init(ctx); err != nil {
 		return err
 	}
-
-	// Initialize global prometheus metrics.
-	prom.Init()
 
 	return util.Run(ctx, func(ctx context.Context) (func(), error) {
 		cleanHTTPServerFn, err := startHTTPServer(ctx, injector)

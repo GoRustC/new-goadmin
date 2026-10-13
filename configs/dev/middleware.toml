@@ -18,8 +18,7 @@ RequestHeaderKey = "X-Request-Id"
 ResponseTraceKey = "X-Trace-Id"
 
 [Middleware.Logger]
-MaxOutputRequestBodyLen = 4096 # bytes
-MaxOutputResponseBodyLen = 4096 # bytes
+SkippedPathPrefixes = []
 
 [Middleware.CopyBody]
 MaxContentLen = 134217728 # 128MB
@@ -28,7 +27,9 @@ MaxContentLen = 134217728 # 128MB
 Disable = false
 SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login"]
 SigningMethod = "HS512" # HS256/HS384/HS512
-SigningKey = "XnEsT0S@" # Secret key
+# Secret key, at least 32 bytes. Required outside debug mode.
+# Left empty in debug mode, a random key is generated per run (tokens do not survive a restart).
+SigningKey = ""
 OldSigningKey = "" # Old secret key (For change secret key)
 Expired = 86400 # seconds
 

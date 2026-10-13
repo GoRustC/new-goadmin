@@ -19,9 +19,10 @@ type Auther interface {
 	Release(ctx context.Context) error
 }
 
-const defaultKey = "CG24SDVP8OHPK395GB5G"
-
-var ErrInvalidToken = errors.New("Invalid token")
+var (
+	ErrInvalidToken      = errors.New("Invalid token")
+	ErrMissingSigningKey = errors.New("jwtx: signing key is required")
+)
 
 type options struct {
 	signingMethod jwt.SigningMethod
@@ -60,16 +61,20 @@ func New(store Storer, opts ...Option) Auther {
 		tokenType:     "Bearer",
 		expired:       7200,
 		signingMethod: jwt.SigningMethodHS512,
-		signingKey:    []byte(defaultKey),
 	}
 
 	for _, opt := range opts {
 		opt(&o)
 	}
 
+	// There is deliberately no built-in default key: a key shipped in source
+	// code lets anyone forge tokens. Without a key, signing and parsing fail.
 	o.keyFuncs = append(o.keyFuncs, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidToken
+		}
+		if len(o.signingKey) == 0 {
+			return nil, ErrMissingSigningKey
 		}
 		return o.signingKey, nil
 	})
@@ -95,6 +100,10 @@ type JWTAuth struct {
 }
 
 func (a *JWTAuth) GenerateToken(ctx context.Context, subject string) (TokenInfo, error) {
+	if len(a.opts.signingKey) == 0 {
+		return nil, ErrMissingSigningKey
+	}
+
 	now := time.Now()
 	expiresAt := now.Add(time.Duration(a.opts.expired) * time.Second)
 

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/LyricTian/gin-admin/v10/internal/config"
-	"github.com/LyricTian/gin-admin/v10/internal/utility/prom"
 	"github.com/LyricTian/gin-admin/v10/internal/wirex"
 	"github.com/LyricTian/gin-admin/v10/pkg/errors"
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
@@ -127,10 +126,8 @@ func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Inject
 	}))
 
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-		AllowedPathPrefixes:      allowedPrefixes,
-		SkippedPathPrefixes:      config.C.Middleware.Logger.SkippedPathPrefixes,
-		MaxOutputRequestBodyLen:  config.C.Middleware.Logger.MaxOutputRequestBodyLen,
-		MaxOutputResponseBodyLen: config.C.Middleware.Logger.MaxOutputResponseBodyLen,
+		AllowedPathPrefixes: allowedPrefixes,
+		SkippedPathPrefixes: config.C.Middleware.Logger.SkippedPathPrefixes,
 	}))
 
 	e.Use(middleware.CopyBodyWithConfig(middleware.CopyBodyConfig{
@@ -183,10 +180,6 @@ func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Inject
 			return util.FromUserCache(c.Request.Context()).RoleIDs
 		},
 	}))
-
-	if config.C.Util.Prometheus.Enable {
-		e.Use(prom.GinMiddleware)
-	}
 
 	return nil
 }
