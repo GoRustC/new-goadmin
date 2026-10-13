@@ -17,6 +17,8 @@ ShutdownTimeout = 10
 ReadTimeout = 60
 WriteTimeout = 60
 IdleTimeout = 10
+ReadHeaderTimeout = 10 # seconds
+MaxHeaderBytes = 1048576 # 1MB
 CertFile = ""
 KeyFile = ""
 # Reverse proxies allowed to set X-Forwarded-For, e.g. ["127.0.0.1", "10.0.0.0/8"].

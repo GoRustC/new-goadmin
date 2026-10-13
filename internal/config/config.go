@@ -34,8 +34,11 @@ type General struct {
 		ReadTimeout     int    `default:"60"` // seconds
 		WriteTimeout    int    `default:"60"` // seconds
 		IdleTimeout     int    `default:"10"` // seconds
-		CertFile        string
-		KeyFile         string
+		// Limits on request headers, against slow or oversized header attacks.
+		ReadHeaderTimeout int `default:"10"`      // seconds
+		MaxHeaderBytes    int `default:"1048576"` // bytes
+		CertFile          string
+		KeyFile           string
 		// Proxies (IPs or CIDRs) allowed to set X-Forwarded-For / X-Real-IP.
 		// Empty trusts none, so the client IP is always the TCP peer address.
 		TrustedProxies []string

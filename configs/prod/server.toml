@@ -27,7 +27,9 @@ Addr = "${GINADMIN_HTTP_ADDR:-:8040}"
 ShutdownTimeout = 10
 ReadTimeout = 60
 WriteTimeout = 60
-IdleTimeout = 10
+IdleTimeout = 75 # Longer than a reverse proxy keepalive (nginx: 60s), avoiding sporadic 502s
+ReadHeaderTimeout = 10 # seconds
+MaxHeaderBytes = 1048576 # 1MB
 CertFile = ""
 KeyFile = ""
 # Reverse proxies allowed to set X-Forwarded-For. Set this when running behind

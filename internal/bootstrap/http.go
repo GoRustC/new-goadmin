@@ -35,6 +35,9 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 		ReadTimeout:  time.Second * time.Duration(config.C.General.HTTP.ReadTimeout),
 		WriteTimeout: time.Second * time.Duration(config.C.General.HTTP.WriteTimeout),
 		IdleTimeout:  time.Second * time.Duration(config.C.General.HTTP.IdleTimeout),
+
+		ReadHeaderTimeout: time.Second * time.Duration(config.C.General.HTTP.ReadHeaderTimeout),
+		MaxHeaderBytes:    config.C.General.HTTP.MaxHeaderBytes,
 	}
 
 	// Load the certificate and bind the port before returning, so a busy port
@@ -93,7 +96,25 @@ func NewHTTPHandler(ctx context.Context, injector *wirex.Injector) (*gin.Engine,
 	if err := e.SetTrustedProxies(config.C.General.HTTP.TrustedProxies); err != nil {
 		return nil, fmt.Errorf("invalid General.HTTP.TrustedProxies: %w", err)
 	}
+	e.Use(middleware.SecureHeadersWithConfig(middleware.SecureHeadersConfig{
+		APIPathPrefixes: injector.M.RouterPrefixes(),
+	}))
+	// Liveness: the process is up and serving.
 	e.GET("/health", func(c *gin.Context) {
+		util.ResOK(c)
+	})
+	// Readiness: the database and cache are reachable. Load balancers should
+	// route traffic only to instances that pass this check.
+	e.GET("/health/ready", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+		defer cancel()
+		if err := checkReady(ctx, injector); err != nil {
+			logging.Context(ctx).Warn("Readiness check failed", zap.Error(err))
+			util.ResJSON(c, http.StatusServiceUnavailable, util.ResponseResult{
+				Error: &errors.Error{ID: "not_ready", Code: http.StatusServiceUnavailable, Detail: "Service not ready"},
+			})
+			return
+		}
 		util.ResOK(c)
 	})
 	e.Use(middleware.RecoveryWithConfig(middleware.RecoveryConfig{
@@ -213,5 +234,20 @@ func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Inject
 		},
 	}))
 
+	return nil
+}
+
+// checkReady pings the database and makes a round trip to the cache.
+func checkReady(ctx context.Context, injector *wirex.Injector) error {
+	sqlDB, err := injector.DB.DB()
+	if err != nil {
+		return fmt.Errorf("database: %w", err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("database: %w", err)
+	}
+	if _, err := injector.Cache.Exists(ctx, "health", "ready"); err != nil {
+		return fmt.Errorf("cache: %w", err)
+	}
 	return nil
 }

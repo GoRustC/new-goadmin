@@ -493,3 +493,34 @@ func TestPrivilegeCeiling(t *testing.T) {
 	// The admin still cannot read logs: nothing above granted it.
 	expectStatus(t, "admin still lacks loggers", call(t, http.MethodGet, "/api/v1/loggers", admin, nil), http.StatusForbidden)
 }
+
+func TestSecurityHeadersAndReadiness(t *testing.T) {
+	r, err := http.Get(server.URL + "/api/v1/captcha/id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	for k, want := range map[string]string{
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+		"Referrer-Policy":         "no-referrer",
+		"Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+	} {
+		if got := r.Header.Get(k); got != want {
+			t.Errorf("API response %s = %q, want %q", k, got, want)
+		}
+	}
+
+	// Pages outside /api (for example a hosted frontend) must not get the
+	// API's restrictive CSP.
+	h, err := http.Get(server.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Body.Close()
+	if h.Header.Get("Content-Security-Policy") != "" || h.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("non-API response headers: CSP=%q nosniff=%q", h.Header.Get("Content-Security-Policy"), h.Header.Get("X-Content-Type-Options"))
+	}
+
+	expectStatus(t, "readiness", call(t, http.MethodGet, "/health/ready", "", nil), http.StatusOK)
+}
