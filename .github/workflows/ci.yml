@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify modules
+        run: |
+          go mod verify
+          go mod tidy -diff
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt on:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build without cgo
+        run: CGO_ENABLED=0 go build ./...
+
+      - name: Check generated wire code is up to date
+        run: go tool wire diff ./internal/wirex
+
+      - name: Test with the race detector
+        # Uses SQLite and in-process caches, including the end-to-end suite.
+        run: go test -race -count=1 ./...
+
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  e2e:
+    name: End-to-end (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: mysql
+            dsn: "ginadmin:ginadmin@tcp(127.0.0.1:3306)/ginadmin?charset=utf8mb4&parseTime=True&loc=Local"
+          - db: postgres
+            dsn: "host=127.0.0.1 user=ginadmin password=ginadmin dbname=ginadmin port=5432 sslmode=disable"
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ginadmin
+          MYSQL_USER: ginadmin
+          MYSQL_PASSWORD: ginadmin
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ginadmin
+          POSTGRES_PASSWORD: ginadmin
+          POSTGRES_DB: ginadmin
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U ginadmin"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:8
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: End-to-end tests against ${{ matrix.db }} and Redis
+        env:
+          E2E_DB_TYPE: ${{ matrix.db }}
+          E2E_DB_DSN: ${{ matrix.dsn }}
+          E2E_REDIS_ADDR: 127.0.0.1:6379
+          REDIS_ADDR: 127.0.0.1:6379
+        run: go test -count=1 ./test/e2e ./pkg/cachex ./pkg/captchax
