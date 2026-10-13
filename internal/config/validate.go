@@ -3,12 +3,35 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"slices"
+	"strings"
 )
 
 // knownDefaultPassword is MD5("abc-123"), the password shipped in earlier
 // versions of this project for the root account and for new or reset users.
 const knownDefaultPassword = "6351623c8cef86fefabfa7da046fc619"
+
+// minSigningKeyLen matches the check applied to SigningKey at startup.
+const minSigningKeyLen = 32
+
+func isBcryptHash(s string) bool {
+	return strings.HasPrefix(s, "$2a$") || strings.HasPrefix(s, "$2b$") || strings.HasPrefix(s, "$2y$")
+}
+
+// isLoopbackAddr reports whether a listen address binds only to loopback.
+// An empty host (":6060") listens on every interface.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 // Validate checks the loaded configuration and reports every problem found.
 func (c *Config) Validate() error {
@@ -56,13 +79,25 @@ func (c *Config) Validate() error {
 	oneOf("Util.Captcha.CacheType", c.Util.Captcha.CacheType, "memory", "redis")
 	redisAddr("Util.Captcha", c.Util.Captcha.CacheType, c.Util.Captcha.Redis.Addr)
 
-	// Publicly known passwords are tolerated only for local development.
+	if k := c.Middleware.Auth.OldSigningKey; k != "" {
+		check(len(k) >= minSigningKeyLen,
+			"Middleware.Auth.OldSigningKey must be at least %d bytes, like SigningKey", minSigningKeyLen)
+	}
+
+	// Development conveniences are refused outside debug mode.
 	if !c.IsDebug() {
 		check(c.General.Root.Password != knownDefaultPassword,
 			"General.Root.Password is a publicly known default value, set your own")
+		check(c.General.Root.Password == "" || isBcryptHash(c.General.Root.Password),
+			"General.Root.Password must be a bcrypt hash outside debug mode (generate one with: ginadmin hash-password), or empty to disable root")
 		check(c.General.DefaultLoginPwd != knownDefaultPassword,
 			"General.DefaultLoginPwd is a publicly known default value, set your own or leave it empty")
 		check(!c.Middleware.Auth.Disable, "Middleware.Auth.Disable must not be true outside debug mode")
+		check(!c.Middleware.Casbin.Disable, "Middleware.Casbin.Disable must not be true outside debug mode")
+		if addr := c.General.PprofAddr; addr != "" {
+			check(isLoopbackAddr(addr),
+				"General.PprofAddr must listen on a loopback address outside debug mode, e.g. 127.0.0.1:6060; got %q", addr)
+		}
 	}
 
 	return errors.Join(errs...)

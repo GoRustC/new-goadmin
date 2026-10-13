@@ -91,7 +91,7 @@ func TestMain(m *testing.M) {
 		"GINADMIN_DB_DSN":        dsn,
 		"GINADMIN_REDIS_ADDR":    redisAddr,
 		"GINADMIN_JWT_KEY":       strings.Repeat("e2e-signing-key-", 4),
-		"GINADMIN_ROOT_PASSWORD": hash.MD5String(rootPassword),
+		"GINADMIN_ROOT_PASSWORD": mustBcrypt(hash.MD5String(rootPassword)),
 	}
 	for k, v := range env {
 		os.Setenv(k, v)
@@ -374,4 +374,14 @@ func TestRateLimiterRedisStore(t *testing.T) {
 	if ok, _ := s.Allow(ctx, key, 10*time.Second, 5); ok {
 		t.Fatal("6th request in the period should be denied")
 	}
+}
+
+// mustBcrypt hashes a root password the way "ginadmin hash-password" does;
+// production refuses a plain MD5 root password.
+func mustBcrypt(md5 string) string {
+	h, err := hash.GeneratePassword(md5)
+	if err != nil {
+		panic(err)
+	}
+	return h
 }

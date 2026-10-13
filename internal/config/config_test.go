@@ -118,6 +118,11 @@ func TestValidateRejects(t *testing.T) {
 		{"known root password", func(c *Config) { c.General.Root.Password = knownDefaultPassword }, "Root.Password"},
 		{"known default password", func(c *Config) { c.General.DefaultLoginPwd = knownDefaultPassword }, "DefaultLoginPwd"},
 		{"auth disabled", func(c *Config) { c.Middleware.Auth.Disable = true }, "Auth.Disable"},
+		{"plain md5 root password", func(c *Config) { c.General.Root.Password = "e10adc3949ba59abbe56e057f20f883e" }, "bcrypt"},
+		{"casbin disabled", func(c *Config) { c.Middleware.Casbin.Disable = true }, "Casbin.Disable"},
+		{"pprof on all interfaces", func(c *Config) { c.General.PprofAddr = ":6060" }, "PprofAddr"},
+		{"pprof on a public address", func(c *Config) { c.General.PprofAddr = "10.0.0.5:6060" }, "PprofAddr"},
+		{"short old signing key", func(c *Config) { c.Middleware.Auth.OldSigningKey = "short" }, "OldSigningKey"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -128,6 +133,22 @@ func TestValidateRejects(t *testing.T) {
 				t.Fatalf("expected an error mentioning %q, got: %v", tt.want, err)
 			}
 		})
+	}
+}
+
+func TestValidateAcceptsSafeProductionValues(t *testing.T) {
+	c := newDefaultConfig(t)
+	c.General.Root.Password = "$2a$10$gati1dUFQOWDoptaMRE.au7Em0ItckL7a9L0Vqnw.XARKGd9zt.WC"
+	c.General.PprofAddr = "127.0.0.1:6060"
+	c.Middleware.Auth.OldSigningKey = strings.Repeat("k", 32)
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected a valid config, got: %v", err)
+	}
+	for _, addr := range []string{"localhost:6060", "[::1]:6060"} {
+		c.General.PprofAddr = addr
+		if err := c.Validate(); err != nil {
+			t.Errorf("PprofAddr %q should be accepted: %v", addr, err)
+		}
 	}
 }
 

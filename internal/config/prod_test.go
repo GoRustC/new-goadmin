@@ -20,7 +20,8 @@ func setProdEnv(t *testing.T) {
 	t.Setenv("GINADMIN_DB_DSN", "user:pass@tcp(db:3306)/ginadmin?parseTime=True")
 	t.Setenv("GINADMIN_REDIS_ADDR", "redis:6379")
 	t.Setenv("GINADMIN_JWT_KEY", strings.Repeat("k", 64))
-	t.Setenv("GINADMIN_ROOT_PASSWORD", "e10adc3949ba59abbe56e057f20f883e")
+	// bcrypt of MD5("123456"); production refuses a plain MD5 root password.
+	t.Setenv("GINADMIN_ROOT_PASSWORD", "$2a$10$gati1dUFQOWDoptaMRE.au7Em0ItckL7a9L0Vqnw.XARKGd9zt.WC")
 }
 
 func TestProdSampleValidates(t *testing.T) {
