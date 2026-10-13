@@ -32,6 +32,9 @@ func (a *RBAC) AutoMigrate(ctx context.Context) error {
 		new(schema.RoleMenu),
 		new(schema.User),
 		new(schema.UserRole),
+		// The /loggers API reads this table. The database log hook also creates
+		// it, but the API must not fail when that hook is disabled.
+		new(schema.Logger),
 	)
 }
 
