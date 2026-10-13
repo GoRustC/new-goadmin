@@ -3,8 +3,10 @@ package middleware
 import (
 	"bytes"
 	"compress/gzip"
+	stderrors "errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
@@ -38,26 +40,34 @@ func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 			requestBody []byte
 			err         error
 		)
-
-		isGzip := false
 		safe := http.MaxBytesReader(c.Writer, c.Request.Body, config.MaxContentLen)
-		if c.GetHeader("Content-Encoding") == "gzip" {
-			if reader, ierr := gzip.NewReader(safe); ierr == nil {
-				isGzip = true
-				// MaxBytesReader only bounds the compressed stream; bound the
-				// decompressed output too, otherwise a small gzip bomb can
-				// allocate unbounded memory before authentication runs.
-				requestBody, err = readAllLimited(reader, config.MaxContentLen)
-				_ = reader.Close()
+		if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
+			zr, zerr := gzip.NewReader(safe)
+			if zerr != nil {
+				// Reading on as plain data would hand the handler a body missing
+				// the bytes the gzip header check already consumed.
+				util.ResError(c, errors.BadRequest("", "Invalid gzip request body"))
+				return
 			}
-		}
-
-		if !isGzip {
+			// MaxBytesReader only bounds the compressed stream; bound the
+			// decompressed output too, otherwise a small gzip bomb can
+			// allocate unbounded memory before authentication runs.
+			requestBody, err = readAllLimited(zr, config.MaxContentLen)
+			_ = zr.Close()
+			// The body handed on is decompressed.
+			c.Request.Header.Del("Content-Encoding")
+		} else {
 			requestBody, err = io.ReadAll(safe)
 		}
 
 		if err != nil {
-			util.ResError(c, errors.RequestEntityTooLarge("", "Request body too large, limit %d byte", config.MaxContentLen))
+			var tooLarge *http.MaxBytesError
+			if stderrors.As(err, &tooLarge) || stderrors.Is(err, errBodyTooLarge) {
+				util.ResError(c, errors.RequestEntityTooLarge("", "Request body too large, limit %d byte", config.MaxContentLen))
+			} else {
+				// Corrupt gzip data, a client that disconnected mid-upload, ...
+				util.ResError(c, errors.BadRequest("", "Failed to read request body"))
+			}
 			return
 		}
 
@@ -69,14 +79,17 @@ func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 	}
 }
 
-// readAllLimited reads at most limit bytes from r and fails if r holds more.
+var errBodyTooLarge = stderrors.New("request body exceeds the size limit")
+
+// readAllLimited reads at most limit bytes from r and fails with
+// errBodyTooLarge if r holds more.
 func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(b)) > limit {
-		return nil, errors.Errorf("decompressed body exceeds %d bytes", limit)
+		return nil, errBodyTooLarge
 	}
 	return b, nil
 }
