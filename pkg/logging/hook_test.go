@@ -70,3 +70,41 @@ func TestHookFlushTimeout(t *testing.T) {
 		t.Fatalf("Flush waited %v despite the timeout", d)
 	}
 }
+
+type batchExec struct {
+	mu      sync.Mutex
+	batches []int
+}
+
+func (e *batchExec) Exec(map[string]string, []byte) error {
+	panic("Exec must not be used when batching")
+}
+func (e *batchExec) ExecBatch(_ map[string]string, entries [][]byte) error {
+	time.Sleep(10 * time.Millisecond) // a slow database lets the queue fill
+	e.mu.Lock()
+	e.batches = append(e.batches, len(entries))
+	e.mu.Unlock()
+	return nil
+}
+func (e *batchExec) Close() error { return nil }
+
+func TestHookBatchesQueuedEntries(t *testing.T) {
+	exec := &batchExec{}
+	h := NewHook(exec, SetHookMaxJobs(1024), SetHookMaxWorkers(1))
+	for i := 0; i < 500; i++ {
+		_, _ = h.Write([]byte(`{"msg":"x"}`))
+	}
+	h.Flush()
+
+	total, largest := 0, 0
+	for _, n := range exec.batches {
+		total += n
+		largest = max(largest, n)
+	}
+	if total != 500 {
+		t.Fatalf("wrote %d entries, want 500", total)
+	}
+	if largest < 2 || largest > maxHookBatch {
+		t.Fatalf("batches should group queued entries up to %d, got sizes %v", maxHookBatch, exec.batches)
+	}
+}

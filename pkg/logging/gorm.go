@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	"time"
 	"unicode/utf8"
 
@@ -38,13 +39,39 @@ type GormHook struct {
 }
 
 func (h *GormHook) Exec(extra map[string]string, b []byte) error {
+	msg, err := toLogger(extra, b)
+	if err != nil {
+		return err
+	}
+	return h.db.Create(msg).Error
+}
+
+// ExecBatch writes several entries with one INSERT. Entries that are not
+// valid JSON are skipped so they cannot drop the rest of the batch.
+func (h *GormHook) ExecBatch(extra map[string]string, entries [][]byte) error {
+	rows := make([]*Logger, 0, len(entries))
+	for _, b := range entries {
+		msg, err := toLogger(extra, b)
+		if err != nil {
+			fmt.Println("Skipping malformed log entry:", err.Error())
+			continue
+		}
+		rows = append(rows, msg)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return h.db.CreateInBatches(rows, len(rows)).Error
+}
+
+// toLogger maps a zap JSON entry to a logger table row.
+func toLogger(extra map[string]string, b []byte) (*Logger, error) {
 	msg := &Logger{
 		ID: xid.New().String(),
 	}
 	data := make(map[string]interface{})
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return err
+	if err := json.Unmarshal(b, &data); err != nil {
+		return nil, err
 	}
 
 	if v, ok := data["ts"].(float64); ok {
@@ -69,8 +96,7 @@ func (h *GormHook) Exec(extra map[string]string, b []byte) error {
 		buf, _ := json.Marshal(data)
 		msg.Data = string(buf)
 	}
-
-	return h.db.Create(msg).Error
+	return msg, nil
 }
 
 func (h *GormHook) Close() error {

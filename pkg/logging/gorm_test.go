@@ -42,3 +42,24 @@ func TestGormHookTruncatesAndToleratesTypes(t *testing.T) {
 		t.Errorf("remaining fields should go to data: %q", got.Data)
 	}
 }
+
+func TestGormHookExecBatch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewGormHook(db)
+	entries := [][]byte{
+		[]byte(`{"level":"info","msg":"one"}`),
+		[]byte(`not json`),
+		[]byte(`{"level":"warn","msg":"two"}`),
+	}
+	if err := h.ExecBatch(nil, entries); err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	db.Model(new(Logger)).Count(&n)
+	if n != 2 {
+		t.Fatalf("stored %d rows, want 2 (the malformed entry is skipped)", n)
+	}
+}

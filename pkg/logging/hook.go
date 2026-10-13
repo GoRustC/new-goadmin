@@ -11,6 +11,17 @@ type HookExecuter interface {
 	Close() error
 }
 
+// BatchExecuter is implemented by executers that can write several entries
+// at once. The hook then hands each worker up to maxHookBatch queued entries
+// per call, cutting round trips: one insert per entry could not keep up with
+// a busy server, and the full queue then discarded audit entries.
+type BatchExecuter interface {
+	ExecBatch(extra map[string]string, entries [][]byte) error
+}
+
+// maxHookBatch bounds how many queued entries one write takes.
+const maxHookBatch = 100
+
 type hookOptions struct {
 	maxJobs    int
 	maxWorkers int
@@ -90,10 +101,30 @@ func (h *Hook) dispatch() {
 				}
 			}()
 
+			batcher, canBatch := h.e.(BatchExecuter)
 			for data := range h.q {
-				err := h.e.Exec(h.opts.extra, data)
-				if err != nil {
-					fmt.Println("Failed to write entry:", err.Error())
+				if !canBatch {
+					if err := h.e.Exec(h.opts.extra, data); err != nil {
+						fmt.Println("Failed to write entry:", err.Error())
+					}
+					continue
+				}
+				// Take whatever else is already queued, without waiting.
+				batch := [][]byte{data}
+			drain:
+				for len(batch) < maxHookBatch {
+					select {
+					case more, ok := <-h.q:
+						if !ok {
+							break drain
+						}
+						batch = append(batch, more)
+					default:
+						break drain
+					}
+				}
+				if err := batcher.ExecBatch(h.opts.extra, batch); err != nil {
+					fmt.Printf("Failed to write %d entries: %s\n", len(batch), err.Error())
 				}
 			}
 		}()
