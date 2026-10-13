@@ -45,6 +45,7 @@
 - 会话自密码登录起最长 7 天（`Middleware.Auth.MaxSessionHours`），之后刷新返回 401（`com.session.expired`），需重新登录。
 - 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
+- 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
 - 配置项变化：新增 `MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
 ## 环境要求
@@ -104,7 +105,7 @@ sudo chmod 600 /etc/ginadmin/ginadmin.env
 | `GINADMIN_DB_DSN` | 是 | 数据库连接串，建议带超时参数，示例见 `ginadmin.env.example` |
 | `GINADMIN_REDIS_ADDR` | 是 | Redis 地址 |
 | `GINADMIN_JWT_KEY` | 是 | 至少 32 字节，可用 `openssl rand -hex 32` 生成 |
-| `GINADMIN_ROOT_PASSWORD` | 是 | root 密码的 MD5，或该 MD5 的 bcrypt 哈希；为空则禁用 root 登录 |
+| `GINADMIN_ROOT_PASSWORD` | 是 | root 密码的 bcrypt 哈希，用 `printf '%s' '密码' \| ./ginadmin hash-password` 生成；为空则禁用 root 登录 |
 | `GINADMIN_DB_TYPE` | 否 | `mysql`（默认）或 `postgres` |
 | `GINADMIN_HTTP_ADDR` | 否 | 监听地址，默认 `:8040`；放在 nginx 后面时建议 `127.0.0.1:8040` |
 | `GINADMIN_REDIS_USERNAME`、`GINADMIN_REDIS_PASSWORD` | 否 | Redis 认证 |

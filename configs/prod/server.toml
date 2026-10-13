@@ -44,7 +44,7 @@ LockMinutes = 15
 [General.Root] # Super Administrator Account
 ID = "root"
 Username = "admin"
-# MD5 hash as sent by the frontend, or a bcrypt hash of it. Empty disables root login.
+# bcrypt hash from "ginadmin hash-password" (a plain MD5 is refused here). Empty disables root login.
 Password = "${GINADMIN_ROOT_PASSWORD}"
 Name = "Admin"
 
