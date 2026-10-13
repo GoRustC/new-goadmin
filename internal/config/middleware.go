@@ -80,7 +80,6 @@ type Middleware struct {
 		LoadThread          int    `default:"2"`
 		AutoLoadInterval    int    `default:"3"` // seconds
 		ModelFile           string `default:"rbac_model.conf"`
-		GenPolicyFile       string `default:"gen_rbac_policy.csv"`
 	}
 	Static struct {
 		Dir string // Static files directory (From command arguments)

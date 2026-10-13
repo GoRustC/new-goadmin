@@ -2,8 +2,10 @@ package biz
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/LyricTian/captcha"
@@ -144,7 +146,7 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 
 	// login by root
 	if formItem.Username == config.C.General.Root.Username {
-		if formItem.Password != config.C.General.Root.Password {
+		if !verifyRootPassword(config.C.General.Root.Password, formItem.Password) {
 			return nil, errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
 		}
 
@@ -365,4 +367,17 @@ func (a *Login) UpdateUser(ctx context.Context, updateItem *schema.UpdateCurrent
 	user.Email = updateItem.Email
 	user.Remark = updateItem.Remark
 	return a.UserDAL.Update(ctx, user, "name", "phone", "email", "remark")
+}
+
+// verifyRootPassword checks the root password from config. It accepts either
+// a bcrypt hash or the plain value, compared in constant time. An empty
+// configured password disables root login.
+func verifyRootPassword(configured, given string) bool {
+	if configured == "" || given == "" {
+		return false
+	}
+	if strings.HasPrefix(configured, "$2a$") || strings.HasPrefix(configured, "$2b$") || strings.HasPrefix(configured, "$2y$") {
+		return hash.CompareHashAndPassword(configured, given) == nil
+	}
+	return subtle.ConstantTimeCompare([]byte(configured), []byte(given)) == 1
 }

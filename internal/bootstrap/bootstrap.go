@@ -41,6 +41,9 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 	config.C.Middleware.Static.Dir = staticDir
 	config.C.Print()
 	config.C.PreLoad()
+	if err := config.C.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
 
 	// Initialize logger.
 	cleanLoggerFn, err := logging.InitWithConfig(ctx, &config.C.Logger, initLoggerHook)

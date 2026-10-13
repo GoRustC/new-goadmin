@@ -5,7 +5,9 @@ Debug = true
 PprofAddr = "" # Pprof monitor address, "localhost:6060"
 DisableSwagger = false
 DisablePrintConfig = false
-DefaultLoginPwd = "6351623c8cef86fefabfa7da046fc619" # MD5("abc-123")
+# Password for new users created without one and for password resets; empty disables both.
+# MD5("abc-123") is accepted in debug mode only.
+DefaultLoginPwd = "6351623c8cef86fefabfa7da046fc619"
 MenuFile = "menu.json" # Or use "menu_cn.json"
 DenyOperateMenu = true
 
@@ -21,7 +23,10 @@ KeyFile = ""
 [General.Root] # Super Administrator Account
 ID = "root"
 Username = "admin"
-Password = "6351623c8cef86fefabfa7da046fc619" # MD5("abc-123")
+# MD5 hash as sent by the frontend, or a bcrypt hash of it; empty disables root login.
+# MD5("abc-123") is accepted in debug mode only. In production, inject it through an
+# environment variable reference (syntax documented in internal/config/validate.go).
+Password = "6351623c8cef86fefabfa7da046fc619"
 Name = "Admin"
 
 [Storage]

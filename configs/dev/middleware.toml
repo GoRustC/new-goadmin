@@ -74,4 +74,3 @@ SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login", "/api/v1/current/"]
 LoadThread = 2
 AutoLoadInterval = 3 # seconds
 ModelFile = "rbac_model.conf"
-GenPolicyFile = "gen_rbac_policy.csv"

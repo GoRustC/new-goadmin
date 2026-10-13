@@ -45,6 +45,11 @@ func Load(dir string, names ...string) error {
 			return errors.Wrapf(err, "failed to read config file %s", name)
 		}
 
+		buf, err = expandEnv(buf)
+		if err != nil {
+			return errors.Wrapf(err, "failed to expand config file %s", name)
+		}
+
 		switch ext {
 		case ".json":
 			err = json.Unmarshal(buf, C)

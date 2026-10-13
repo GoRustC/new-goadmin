@@ -94,6 +94,9 @@ func (a *User) Create(ctx context.Context, formItem *schema.UserForm) (*schema.U
 	}
 
 	if formItem.Password == "" {
+		if config.C.General.DefaultLoginPwd == "" {
+			return nil, errors.BadRequest("", "Password is required")
+		}
 		formItem.Password = config.C.General.DefaultLoginPwd
 	}
 
@@ -197,6 +200,10 @@ func (a *User) ResetPassword(ctx context.Context, id string) error {
 		return err
 	} else if !exists {
 		return errors.NotFound("", "User not found")
+	}
+
+	if config.C.General.DefaultLoginPwd == "" {
+		return errors.BadRequest("", "Password reset is disabled because no default password is configured")
 	}
 
 	hashPass, err := hash.GeneratePassword(config.C.General.DefaultLoginPwd)

@@ -24,7 +24,7 @@ type General struct {
 	PprofAddr          string
 	DisableSwagger     bool
 	DisablePrintConfig bool
-	DefaultLoginPwd    string `default:"6351623c8cef86fefabfa7da046fc619"` // MD5(abc-123)
+	DefaultLoginPwd    string // Password (MD5 hash, as sent by the frontend) for new users without one and for resets; empty disables both
 	WorkDir            string // From command arguments
 	MenuFile           string // From schema.Menus (JSON/YAML)
 	DenyOperateMenu    bool
@@ -40,7 +40,7 @@ type General struct {
 	Root struct {
 		ID       string `default:"root"`
 		Username string `default:"admin"`
-		Password string
+		Password string // MD5 hash as sent by the frontend, or a bcrypt hash of it; empty disables root login
 		Name     string `default:"Admin"`
 	}
 }

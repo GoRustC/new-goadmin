@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,6 +18,8 @@ import (
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 	"github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v2/model"
+	stringadapter "github.com/casbin/casbin/v2/persist/string-adapter"
 	"go.uber.org/zap"
 )
 
@@ -49,11 +50,19 @@ func (a *Casbinx) Load(ctx context.Context) error {
 		return nil
 	}
 
+	if config.C.Storage.Cache.Type == "memory" && !config.C.IsDebug() {
+		logging.Context(ctx).Warn("Casbin policy reloads are signalled through Storage.Cache; " +
+			"with the memory cache, other instances never see role or menu changes. " +
+			"Use the redis cache when running more than one instance.")
+	}
+
 	a.enforcer = new(atomic.Value)
 	if err := a.load(ctx); err != nil {
 		return err
 	}
 
+	// Create the ticker before starting the goroutine so Release never races with it.
+	a.ticker = time.NewTicker(time.Duration(config.C.Middleware.Casbin.AutoLoadInterval) * time.Second)
 	go a.autoLoad(ctx)
 	return nil
 }
@@ -67,13 +76,11 @@ func (a *Casbinx) load(ctx context.Context) error {
 	})
 	if err != nil {
 		return err
-	} else if len(roleResult.Data) == 0 {
-		return nil
 	}
 
 	var resCount int32
 	queue := make(chan *policyQueueItem, len(roleResult.Data))
-	threadNum := config.C.Middleware.Casbin.LoadThread
+	threadNum := max(config.C.Middleware.Casbin.LoadThread, 1)
 	lock := new(sync.Mutex)
 	buf := new(bytes.Buffer)
 
@@ -109,26 +116,29 @@ func (a *Casbinx) load(ctx context.Context) error {
 	close(queue)
 	wg.Wait()
 
-	if buf.Len() > 0 {
-		policyFile := filepath.Join(config.C.General.WorkDir, config.C.Middleware.Casbin.GenPolicyFile)
-		_ = os.Rename(policyFile, policyFile+".bak")
-		_ = os.MkdirAll(filepath.Dir(policyFile), 0755)
-		if err := os.WriteFile(policyFile, buf.Bytes(), 0666); err != nil {
-			logging.Context(ctx).Error("Failed to write policy file", zap.Error(err))
-			return err
-		}
-		// set readonly
-		_ = os.Chmod(policyFile, 0444)
-
-		modelFile := filepath.Join(config.C.General.WorkDir, config.C.Middleware.Casbin.ModelFile)
-		e, err := casbin.NewEnforcer(modelFile, policyFile)
-		if err != nil {
-			logging.Context(ctx).Error("Failed to create casbin enforcer", zap.Error(err))
-			return err
-		}
-		e.EnableLog(config.C.IsDebug())
-		a.enforcer.Store(e)
+	// Always swap in a fresh enforcer, even with no policies: keeping the old
+	// one would continue to allow permissions that were just revoked.
+	// Policies are loaded from memory, so nothing is written to the work dir.
+	modelFile := filepath.Join(config.C.General.WorkDir, config.C.Middleware.Casbin.ModelFile)
+	m, err := model.NewModelFromFile(modelFile)
+	if err != nil {
+		logging.Context(ctx).Error("Failed to load casbin model", zap.Error(err))
+		return err
 	}
+	var e *casbin.Enforcer
+	if buf.Len() > 0 {
+		e, err = casbin.NewEnforcer(m, stringadapter.NewAdapter(buf.String()))
+	} else {
+		// The string adapter rejects empty input; a model-only enforcer has no
+		// policies and therefore denies every request.
+		e, err = casbin.NewEnforcer(m)
+	}
+	if err != nil {
+		logging.Context(ctx).Error("Failed to create casbin enforcer", zap.Error(err))
+		return err
+	}
+	e.EnableLog(config.C.IsDebug())
+	a.enforcer.Store(e)
 
 	logging.Context(ctx).Info("Casbin load policy",
 		zap.Duration("cost", time.Since(start)),
@@ -188,7 +198,6 @@ func (a *Casbinx) queryRoleResources(ctx context.Context, roleID string) (schema
 
 func (a *Casbinx) autoLoad(ctx context.Context) {
 	var lastUpdated int64
-	a.ticker = time.NewTicker(time.Duration(config.C.Middleware.Casbin.AutoLoadInterval) * time.Second)
 	for range a.ticker.C {
 		val, ok, err := a.Cache.Get(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin)
 		if err != nil {
