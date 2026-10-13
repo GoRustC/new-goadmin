@@ -77,6 +77,7 @@ func WrapPageQuery(ctx context.Context, db *gorm.DB, pp PaginationParam, opts Qu
 		return nil, err
 	}
 
+	pp = normalizePage(pp)
 	total, err := FindPage(ctx, db, pp, opts, out)
 	if err != nil {
 		return nil, err
@@ -89,7 +90,22 @@ func WrapPageQuery(ctx context.Context, db *gorm.DB, pp PaginationParam, opts Qu
 	}, nil
 }
 
+// DefaultPageSize is used when a paginated query asks for a page size of 0 or
+// less, so a request can never fetch a whole table in one page.
+const DefaultPageSize = 10
+
+func normalizePage(pp PaginationParam) PaginationParam {
+	if pp.Current < 1 {
+		pp.Current = 1
+	}
+	if pp.PageSize < 1 {
+		pp.PageSize = DefaultPageSize
+	}
+	return pp
+}
+
 func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out interface{}) (int64, error) {
+	pp = normalizePage(pp)
 	db = db.WithContext(ctx)
 	var count int64
 	err := db.Count(&count).Error
@@ -99,12 +115,7 @@ func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOp
 		return count, nil
 	}
 
-	current, pageSize := pp.Current, pp.PageSize
-	if current > 0 && pageSize > 0 {
-		db = db.Offset((current - 1) * pageSize).Limit(pageSize)
-	} else if pageSize > 0 {
-		db = db.Limit(pageSize)
-	}
+	db = db.Offset((pp.Current - 1) * pp.PageSize).Limit(pp.PageSize)
 
 	db = wrapQueryOptions(db, opts)
 	err = db.Find(out).Error
