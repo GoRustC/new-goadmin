@@ -61,7 +61,7 @@
 | 7 | 环境变量按原文替换进 TOML | 已修：解析后再展开，测试机验证含引号和反斜杠的值可正常启动 | 57d81b7 |
 | 8 | 标准库漏洞 | 已修：要求 Go 1.27.2，升级 x/net 与 opentelemetry；govulncheck 无可达漏洞 | 2d63306 |
 | 9 | Casbin 单个角色加载失败被当作成功 | 已修：整次加载失败，保留旧策略，下个周期重试 | 921702b |
-| 10 | 模块路径加 `internal/`，下游无法作为库引入 | **部分完成**：模块路径已改为 `github.com/GoRustC/new-goadmin`；骨架仍在 `internal/`，是否移出取决于下游 fork 还是作为库引入 | 见下一个提交 |
+| 10 | 模块路径加 `internal/`，下游无法作为库引入 | **部分完成**：模块路径已改为 `github.com/GoRustC/new-goadmin`；骨架仍在 `internal/`，是否移出取决于下游 fork 还是作为库引入 | e0c2570 |
 
 修复中新发现：`configs/menu.json` 没有任何菜单包含重置密码接口 `PATCH /api/v1/users/{id}/reset-pwd`，因此除 root 外无人能使用该功能。是否开放给某个按钮，属于产品决定，暂未改动。
 
