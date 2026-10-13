@@ -192,6 +192,12 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 	if err != nil {
 		return err
 	}
+	if formItem.Password != "" {
+		// A password set by an administrator signs the user out everywhere.
+		if err := revokeUserTokens(ctx, a.Cache, a.Config, id); err != nil {
+			return err
+		}
+	}
 	return a.invalidateUserCache(ctx, id)
 }
 
@@ -242,12 +248,10 @@ func (a *User) ResetPassword(ctx context.Context, id string) error {
 		return errors.BadRequest("", "Failed to generate hash password: %s", err.Error())
 	}
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
-		if err := a.UserDAL.UpdatePasswordByID(ctx, id, hashPass); err != nil {
-			return err
-		}
-		return nil
-	})
+	if err := a.UserDAL.UpdatePasswordByID(ctx, id, hashPass); err != nil {
+		return err
+	}
+	return revokeUserTokens(ctx, a.Cache, a.Config, id)
 }
 
 func (a *User) GetRoleIDs(ctx context.Context, id string) ([]string, error) {

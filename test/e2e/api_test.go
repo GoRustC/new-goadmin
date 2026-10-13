@@ -202,21 +202,27 @@ func TestCurrentUserEndpoints(t *testing.T) {
 		t.Errorf("profile name after update: %q", got)
 	}
 
-	// Token refresh issues a working token.
+	// Token refresh issues a working token and retires the one it replaced.
 	ref := call(t, http.MethodPost, "/api/v1/current/refresh-token", token, nil)
 	expectStatus(t, "refresh token", ref, http.StatusOK)
 	newToken := dataField(t, ref, "access_token")
 	expectStatus(t, "refreshed token works", call(t, http.MethodGet, "/api/v1/current/user", newToken, nil), http.StatusOK)
+	expectStatus(t, "token replaced by refresh", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusUnauthorized)
+	expectStatus(t, "root can refresh", call(t, http.MethodPost, "/api/v1/current/refresh-token", root, nil), http.StatusOK)
 
-	// Password change.
-	expectStatus(t, "wrong old password", call(t, http.MethodPut, "/api/v1/current/password", token, map[string]any{
+	// Password change signs out every session, including the current one.
+	other := mustLogin(t, username, "Old-Pass-1")
+	expectStatus(t, "wrong old password", call(t, http.MethodPut, "/api/v1/current/password", newToken, map[string]any{
 		"old_password": hash.MD5String("wrong"), "new_password": hash.MD5String("New-Pass-2"),
 	}), http.StatusBadRequest)
-	expectStatus(t, "change password", call(t, http.MethodPut, "/api/v1/current/password", token, map[string]any{
+	expectStatus(t, "change password", call(t, http.MethodPut, "/api/v1/current/password", newToken, map[string]any{
 		"old_password": hash.MD5String("Old-Pass-1"), "new_password": hash.MD5String("New-Pass-2"),
 	}), http.StatusOK)
+	expectStatus(t, "current session after password change", call(t, http.MethodGet, "/api/v1/current/user", newToken, nil), http.StatusUnauthorized)
+	expectStatus(t, "other session after password change", call(t, http.MethodGet, "/api/v1/current/user", other, nil), http.StatusUnauthorized)
 	expectStatus(t, "old password rejected", login(t, username, "Old-Pass-1"), http.StatusBadRequest)
-	mustLogin(t, username, "New-Pass-2")
+	fresh := mustLogin(t, username, "New-Pass-2")
+	expectStatus(t, "login right after the change works", call(t, http.MethodGet, "/api/v1/current/user", fresh, nil), http.StatusOK)
 }
 
 func TestUserManagement(t *testing.T) {
@@ -523,4 +529,59 @@ func TestSecurityHeadersAndReadiness(t *testing.T) {
 	}
 
 	expectStatus(t, "readiness", call(t, http.MethodGet, "/health/ready", "", nil), http.StatusOK)
+}
+
+func TestLoginLockAndEnumeration(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	roleID := createRole(t, root, "lk"+s, menuID(t, "user"))
+	username := "lk" + s
+	createUser(t, root, username, "Right-1", roleID)
+
+	max := config.C.General.LoginLock.MaxFailures
+	for i := 0; i < max; i++ {
+		expectStatus(t, "wrong password", login(t, username, "wrong"), http.StatusBadRequest)
+	}
+	locked := login(t, username, "Right-1")
+	expectStatus(t, "locked even with the right password", locked, http.StatusTooManyRequests)
+	if locked.Error == nil || locked.Error.ID != "com.login.locked" {
+		t.Fatalf("expected a lock error, got %+v", locked.Error)
+	}
+
+	// Names that do not exist lock the same way, so a lock reveals nothing.
+	ghost := "ghost" + s
+	for i := 0; i < max; i++ {
+		r := login(t, ghost, "x")
+		expectStatus(t, "unknown user", r, http.StatusBadRequest)
+		if r.Error == nil || r.Error.ID != "com.invalid.username-or-password" {
+			t.Fatalf("unknown user should get the generic error, got %+v", r.Error)
+		}
+	}
+	expectStatus(t, "unknown name locks too", login(t, ghost, "x"), http.StatusTooManyRequests)
+
+	// Other accounts are unaffected.
+	mustLogin(t, "admin", rootPassword)
+
+	// A frozen account answers a wrong password exactly like any other.
+	frozen := "fz" + s
+	frozenID := createUser(t, root, frozen, "Right-1", roleID)
+	expectStatus(t, "freeze", call(t, http.MethodPut, "/api/v1/users/"+frozenID, root, userForm(frozen, "", "freezed", roleID)), http.StatusOK)
+	r := login(t, frozen, "wrong")
+	if r.Error == nil || r.Error.ID != "com.invalid.username-or-password" {
+		t.Fatalf("frozen account with a wrong password must look like any failure, got %+v", r.Error)
+	}
+}
+
+func TestAdminPasswordChangeSignsUserOut(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	roleID := createRole(t, root, "pw"+s, menuID(t, "user"))
+	username := "pw" + s
+	userID := createUser(t, root, username, "Pass-1", roleID)
+	token := mustLogin(t, username, "Pass-1")
+
+	expectStatus(t, "admin sets a new password", call(t, http.MethodPut, "/api/v1/users/"+userID, root,
+		userForm(username, "Pass-2", "activated", roleID)), http.StatusOK)
+	expectStatus(t, "old session after admin password change", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusUnauthorized)
+	mustLogin(t, username, "Pass-2")
 }

@@ -15,6 +15,9 @@ type Auther interface {
 	DestroyToken(ctx context.Context, accessToken string) error
 	// Parse the subject (or user identifier) from a given access token.
 	ParseSubject(ctx context.Context, accessToken string) (string, error)
+	// ParseClaims validates a token, including the revocation store, and
+	// returns its claims.
+	ParseClaims(ctx context.Context, accessToken string) (*jwt.RegisteredClaims, error)
 	// Release any resources held by the JWTAuth instance.
 	Release(ctx context.Context) error
 }
@@ -23,6 +26,14 @@ var (
 	ErrInvalidToken      = errors.New("Invalid token")
 	ErrMissingSigningKey = errors.New("jwtx: signing key is required")
 )
+
+func init() {
+	// Issue times with millisecond precision, so a token issued right after
+	// a revocation (for example a login just after a password change) can be
+	// told apart from one issued just before it in the same second. Tokens
+	// with whole-second times still parse.
+	jwt.TimePrecision = time.Millisecond
+}
 
 type options struct {
 	signingMethod jwt.SigningMethod
@@ -134,7 +145,8 @@ func (a *JWTAuth) parseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
 	)
 
 	for _, keyFunc := range a.opts.keyFuncs {
-		token, err = jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, keyFunc)
+		token, err = jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, keyFunc,
+			jwt.WithExpirationRequired(), jwt.WithIssuedAt())
 		if err != nil || token == nil || !token.Valid {
 			continue
 		}
@@ -168,13 +180,21 @@ func (a *JWTAuth) DestroyToken(ctx context.Context, tokenStr string) error {
 }
 
 func (a *JWTAuth) ParseSubject(ctx context.Context, tokenStr string) (string, error) {
+	claims, err := a.ParseClaims(ctx, tokenStr)
+	if err != nil {
+		return "", err
+	}
+	return claims.Subject, nil
+}
+
+func (a *JWTAuth) ParseClaims(ctx context.Context, tokenStr string) (*jwt.RegisteredClaims, error) {
 	if tokenStr == "" {
-		return "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 
 	claims, err := a.parseToken(tokenStr)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	err = a.callStore(func(store Storer) error {
@@ -186,10 +206,9 @@ func (a *JWTAuth) ParseSubject(ctx context.Context, tokenStr string) (string, er
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	return claims.Subject, nil
+	return claims, nil
 }
 
 func (a *JWTAuth) Release(ctx context.Context) error {

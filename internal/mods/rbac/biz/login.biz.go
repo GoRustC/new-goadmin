@@ -48,15 +48,26 @@ func (a *Login) ParseUserID(c *gin.Context) (string, error) {
 	ctx := c.Request.Context()
 	ctx = util.NewUserToken(ctx, token)
 
-	userID, err := a.Auth.ParseSubject(ctx, token)
+	claims, err := a.Auth.ParseClaims(ctx, token)
 	if err != nil {
 		if err == jwtx.ErrInvalidToken {
 			return "", invalidToken
 		}
 		return "", err
-	} else if userID == rootID {
+	}
+	userID := claims.Subject
+	if userID == rootID {
 		c.Request = c.Request.WithContext(util.NewIsRootUser(ctx))
 		return userID, nil
+	}
+
+	// Tokens issued before a password change or reset are no longer valid.
+	if claims.IssuedAt != nil {
+		if revoked, err := tokenRevoked(ctx, a.Cache, userID, claims.IssuedAt.Time); err != nil {
+			return "", err
+		} else if revoked {
+			return "", invalidToken
+		}
 	}
 
 	userCacheVal, ok, err := a.Cache.Get(ctx, config.CacheNSForUser, userID)
@@ -153,11 +164,25 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 
 	ctx = logging.NewTag(ctx, logging.TagKeyLogin)
 
+	lock := loginLock{cache: a.Cache, cfg: a.Config}
+	if err := lock.check(ctx, formItem.Username); err != nil {
+		logging.Context(ctx).Warn("Login rejected: account name locked", zap.String("username", formItem.Username))
+		return nil, err
+	}
+	badCredentials := func() error {
+		if err := lock.fail(ctx, formItem.Username); err != nil {
+			logging.Context(ctx).Error("Failed to record login failure", zap.Error(err))
+		}
+		logging.Context(ctx).Warn("Login failed", zap.String("username", formItem.Username))
+		return errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
+	}
+
 	// login by root
 	if formItem.Username == a.Config.General.Root.Username {
 		if !verifyRootPassword(a.Config.General.Root.Password, formItem.Password) {
-			return nil, errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
+			return nil, badCredentials()
 		}
+		_ = lock.reset(ctx, formItem.Username)
 
 		userID := a.Config.General.Root.ID
 		ctx = logging.NewUserID(ctx, userID)
@@ -174,14 +199,20 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 	if err != nil {
 		return nil, err
 	} else if user == nil {
-		return nil, errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
-	} else if user.Status != schema.UserStatusActivated {
-		return nil, errors.BadRequest("", "User status is not activated, please contact the administrator")
+		// Spend the same time as a wrong password, so timing does not reveal
+		// whether the account exists.
+		_ = hash.CompareHashAndPassword(dummyPasswordHash, formItem.Password)
+		return nil, badCredentials()
 	}
 
-	// check password
+	// Check the password before the status, so the "not activated" message
+	// cannot be used to discover frozen accounts without their password.
 	if err := hash.CompareHashAndPassword(user.Password, formItem.Password); err != nil {
-		return nil, errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
+		return nil, badCredentials()
+	}
+	_ = lock.reset(ctx, formItem.Username)
+	if user.Status != schema.UserStatusActivated {
+		return nil, errors.BadRequest("", "User status is not activated, please contact the administrator")
 	}
 
 	userID := user.ID
@@ -208,20 +239,33 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 func (a *Login) RefreshToken(ctx context.Context) (*schema.LoginToken, error) {
 	userID := util.FromUserID(ctx)
 
-	user, err := a.UserDAL.Get(ctx, userID, schema.UserQueryOptions{
-		QueryOptions: util.QueryOptions{
-			SelectFields: []string{"status"},
-		},
-	})
-	if err != nil {
-		return nil, err
-	} else if user == nil {
-		return nil, errors.BadRequest("", "Incorrect user")
-	} else if user.Status != schema.UserStatusActivated {
-		return nil, errors.BadRequest("", "User status is not activated, please contact the administrator")
+	if !util.FromIsRootUser(ctx) {
+		user, err := a.UserDAL.Get(ctx, userID, schema.UserQueryOptions{
+			QueryOptions: util.QueryOptions{
+				SelectFields: []string{"status"},
+			},
+		})
+		if err != nil {
+			return nil, err
+		} else if user == nil {
+			return nil, errors.BadRequest("", "Incorrect user")
+		} else if user.Status != schema.UserStatusActivated {
+			return nil, errors.BadRequest("", "User status is not activated, please contact the administrator")
+		}
 	}
 
-	return a.genUserToken(ctx, userID)
+	token, err := a.genUserToken(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	// Retire the token used for the refresh, so refreshing replaces a token
+	// instead of adding a second valid one.
+	if old := util.FromUserToken(ctx); old != "" {
+		if err := a.Auth.DestroyToken(ctx, old); err != nil {
+			logging.Context(ctx).Error("Failed to revoke refreshed token", zap.Error(err))
+		}
+	}
+	return token, nil
 }
 
 func (a *Login) Logout(ctx context.Context) error {
@@ -309,7 +353,11 @@ func (a *Login) UpdatePassword(ctx context.Context, updateItem *schema.UpdateLog
 	if err != nil {
 		return err
 	}
-	return a.UserDAL.UpdatePasswordByID(ctx, userID, newPassword)
+	if err := a.UserDAL.UpdatePasswordByID(ctx, userID, newPassword); err != nil {
+		return err
+	}
+	// Sign out every session, including the current one.
+	return revokeUserTokens(ctx, a.Cache, a.Config, userID)
 }
 
 // Query menus based on user permissions

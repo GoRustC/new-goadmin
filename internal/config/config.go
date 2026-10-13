@@ -43,6 +43,12 @@ type General struct {
 		// Empty trusts none, so the client IP is always the TCP peer address.
 		TrustedProxies []string
 	}
+	// Locks an account name after repeated failed logins. Counting applies
+	// to every submitted name, existing or not, so a lock reveals nothing.
+	LoginLock struct {
+		MaxFailures int `default:"5"`  // failures before locking; 0 disables
+		LockMinutes int `default:"15"` // lock duration and failure window
+	}
 	Root struct {
 		ID       string `default:"root"`
 		Username string `default:"admin"`
