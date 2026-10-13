@@ -1,37 +1,43 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 )
 
-func SkippedPathPrefixes(c *gin.Context, prefixes ...string) bool {
-	if len(prefixes) == 0 {
-		return false
+// matchPathPrefix reports whether path falls under prefix, matching whole
+// path segments. A prefix ending in "/" covers everything below it
+// ("/api/v1/captcha/" matches "/api/v1/captcha/id"). Any other prefix covers
+// the path itself and its sub-paths only: "/api/v1/login" matches
+// "/api/v1/login" and "/api/v1/login/x" but not "/api/v1/login-history",
+// which a raw string prefix would have exempted from authentication.
+func matchPathPrefix(path, prefix string) bool {
+	if strings.HasSuffix(prefix, "/") {
+		return strings.HasPrefix(path, prefix)
 	}
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
+}
 
-	path := c.Request.URL.Path
-	pathLen := len(path)
+func matchAnyPathPrefix(path string, prefixes []string) bool {
 	for _, p := range prefixes {
-		if pl := len(p); pathLen >= pl && path[:pl] == p {
+		if matchPathPrefix(path, p) {
 			return true
 		}
 	}
 	return false
 }
 
-func AllowedPathPrefixes(c *gin.Context, prefixes ...string) bool {
-	if len(prefixes) == 0 {
-		return true
-	}
+// SkippedPathPrefixes reports whether the request path is under any of the
+// prefixes. No prefixes means nothing is skipped.
+func SkippedPathPrefixes(c *gin.Context, prefixes ...string) bool {
+	return len(prefixes) > 0 && matchAnyPathPrefix(c.Request.URL.Path, prefixes)
+}
 
-	path := c.Request.URL.Path
-	pathLen := len(path)
-	for _, p := range prefixes {
-		if pl := len(p); pathLen >= pl && path[:pl] == p {
-			return true
-		}
-	}
-	return false
+// AllowedPathPrefixes reports whether the request path is under any of the
+// prefixes. No prefixes means everything is allowed.
+func AllowedPathPrefixes(c *gin.Context, prefixes ...string) bool {
+	return len(prefixes) == 0 || matchAnyPathPrefix(c.Request.URL.Path, prefixes)
 }
 
 func Empty() gin.HandlerFunc {
