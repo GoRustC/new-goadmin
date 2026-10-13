@@ -113,7 +113,10 @@ func ResPage(c *gin.Context, v interface{}, pr *PaginationResult) {
 func ResError(c *gin.Context, err error, status ...int) {
 	var ierr *errors.Error
 	if e, ok := errors.As(err); ok {
-		ierr = e
+		// Work on a copy: errors are often package-level values shared by
+		// concurrent requests, such as middleware.ErrCasbinDenied.
+		cp := *e
+		ierr = &cp
 	} else {
 		ierr = errors.FromError(errors.InternalServerError("", "%s", err.Error()))
 	}
