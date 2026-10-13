@@ -1,0 +1,37 @@
+# nginx in front of ginadmin. With this setup, set in configs/prod/server.toml:
+#   [General.HTTP]
+#   Addr = "127.0.0.1:8040"
+#   TrustedProxies = ["127.0.0.1"]
+upstream ginadmin {
+    server 127.0.0.1:8040;
+    keepalive 32;   # ginadmin's IdleTimeout (75s) is longer than nginx's 60s
+}
+
+server {
+    listen 443 ssl http2;
+    server_name admin.example.com;
+
+    ssl_certificate     /etc/ssl/admin.example.com.crt;
+    ssl_certificate_key /etc/ssl/admin.example.com.key;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    client_max_body_size 4m;   # matches Middleware.CopyBody.MaxContentLen
+
+    location / {
+        proxy_pass http://ginadmin;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # ginadmin reads the client IP from X-Forwarded-For only when the
+        # request comes from a TrustedProxies address.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name admin.example.com;
+    return 301 https://$host$request_uri;
+}

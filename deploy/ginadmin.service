@@ -1,0 +1,31 @@
+# systemd unit for ginadmin. Install:
+#   sudo cp deploy/ginadmin.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now ginadmin
+[Unit]
+Description=ginadmin API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ginadmin
+Group=ginadmin
+WorkingDirectory=/opt/ginadmin
+EnvironmentFile=/etc/ginadmin/ginadmin.env
+ExecStart=/opt/ginadmin/ginadmin start -d configs -c prod
+Restart=on-failure
+RestartSec=5
+# The server drains in-flight requests on SIGTERM within ShutdownTimeout.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+# Sandboxing: the server only needs to write under data/ (file logs, if enabled).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/ginadmin/data
+
+[Install]
+WantedBy=multi-user.target
