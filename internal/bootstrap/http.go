@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -28,7 +29,6 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 	}
 
 	addr := config.C.General.HTTP.Addr
-	logging.Context(ctx).Info(fmt.Sprintf("HTTP server is listening on %s", addr))
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      e,
@@ -37,17 +37,32 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 		IdleTimeout:  time.Second * time.Duration(config.C.General.HTTP.IdleTimeout),
 	}
 
+	// Load the certificate and bind the port before returning, so a busy port
+	// or a bad certificate fails startup instead of leaving a process that is
+	// running but not serving.
+	certFile, keyFile := config.C.General.HTTP.CertFile, config.C.General.HTTP.KeyFile
+	if certFile != "" && keyFile != "" {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load TLS certificate: %w", err)
+		}
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", addr, err)
+	}
+	logging.Context(ctx).Info(fmt.Sprintf("HTTP server is listening on %s", ln.Addr()))
+
 	go func() {
 		var err error
-		if config.C.General.HTTP.CertFile != "" && config.C.General.HTTP.KeyFile != "" {
-			srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-			err = srv.ListenAndServeTLS(config.C.General.HTTP.CertFile, config.C.General.HTTP.KeyFile)
+		if srv.TLSConfig != nil {
+			err = srv.ServeTLS(ln, "", "")
 		} else {
-			err = srv.ListenAndServe()
+			err = srv.Serve(ln)
 		}
-
 		if err != nil && err != http.ErrServerClosed {
-			logging.Context(ctx).Error("Failed to listen http server", zap.Error(err))
+			logging.Context(ctx).Error("HTTP server stopped", zap.Error(err))
 		}
 	}()
 
