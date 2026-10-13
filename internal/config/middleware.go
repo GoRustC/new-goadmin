@@ -37,7 +37,10 @@ type Middleware struct {
 		SigningKey          string // secret key, no default; required outside debug mode, at least 32 bytes
 		OldSigningKey       string // old secret key (for migration)
 		Expired             int    `default:"86400"` // seconds
-		Store               struct {
+		// Longest a session may last from the password login, across token
+		// refreshes. 0 means no limit.
+		MaxSessionHours int `default:"168"`
+		Store           struct {
 			Type      string `default:"memory"` // memory/badger/redis
 			Delimiter string `default:":"`      // delimiter for key
 			Memory    struct {

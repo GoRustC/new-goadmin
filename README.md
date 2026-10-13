@@ -42,9 +42,10 @@
 
 **行为变化（升级时注意）**
 - 刷新 token 后旧 token 立即失效；改密码后当前会话也需重新登录。
+- 会话自密码登录起最长 7 天（`Middleware.Auth.MaxSessionHours`），之后刷新返回 401（`com.session.expired`），需重新登录。
 - 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
-- 配置项变化：新增 `TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
+- 配置项变化：新增 `MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
 ## 环境要求
 
@@ -142,7 +143,7 @@ sudo systemctl enable --now ginadmin
 
 ## 安全机制
 
-- **认证**：JWT（HS512）。登出、改密码、管理员设置或重置密码都会使相关 token 失效；刷新 token 时旧 token 作废。
+- **认证**：JWT（HS512）。登出、改密码、管理员设置或重置密码都会使相关 token 失效；刷新 token 时旧 token 作废；会话自登录起最长 7 天，刷新不能延长。
 - **登录防护**：图形验证码；同一账号名连续失败 5 次锁定 15 分钟（`General.LoginLock`），不存在的账号名同样计数；错误提示和响应时间不暴露账号是否存在。
 - **授权**：Casbin 按"角色 → 菜单 → 接口"控制访问，权限变更无需重启即生效。非 root 管理员只能授予和管理不超过自身菜单范围的角色与用户，不能通过用户管理修改自己。
 - **root 账号**：来自配置而非数据库，不受权限控制。生产环境应使用强密码，必要时把 `GINADMIN_ROOT_PASSWORD` 设为空以禁用。

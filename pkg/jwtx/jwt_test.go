@@ -35,3 +35,27 @@ func TestAuth(t *testing.T) {
 	err = jwtAuth.Release(ctx)
 	assert.Nil(t, err)
 }
+
+func TestAuthTimeAndSessionStart(t *testing.T) {
+	store := NewStoreWithCache(NewMemoryCache(MemoryConfig{CleanupInterval: time.Minute}))
+	auth := New(store, SetSigningKey("test-signing-key-0123456789abcdef", ""))
+	ctx := context.Background()
+
+	fresh, err := auth.GenerateToken(ctx, "u1")
+	assert.Nil(t, err)
+	c, err := auth.ParseClaims(ctx, fresh.GetAccessToken())
+	assert.Nil(t, err)
+	assert.WithinDuration(t, time.Now(), c.SessionStart(), 2*time.Second, "auth_time defaults to now")
+
+	start := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
+	refreshed, err := auth.GenerateToken(ctx, "u1", WithAuthTime(start))
+	assert.Nil(t, err)
+	c, err = auth.ParseClaims(ctx, refreshed.GetAccessToken())
+	assert.Nil(t, err)
+	assert.True(t, c.SessionStart().Equal(start), "auth_time is carried over: got %v want %v", c.SessionStart(), start)
+
+	// Tokens issued before auth_time existed fall back to iat.
+	legacy := &Claims{}
+	legacy.IssuedAt = c.IssuedAt
+	assert.True(t, legacy.SessionStart().Equal(c.IssuedAt.Time))
+}

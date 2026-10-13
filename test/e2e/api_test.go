@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -208,6 +209,9 @@ func TestCurrentUserEndpoints(t *testing.T) {
 	newToken := dataField(t, ref, "access_token")
 	expectStatus(t, "refreshed token works", call(t, http.MethodGet, "/api/v1/current/user", newToken, nil), http.StatusOK)
 	expectStatus(t, "token replaced by refresh", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusUnauthorized)
+	if a, b := jwtAuthTime(t, token), jwtAuthTime(t, newToken); a == 0 || a != b {
+		t.Fatalf("refresh must keep the session start: auth_time %v -> %v", a, b)
+	}
 	expectStatus(t, "root can refresh", call(t, http.MethodPost, "/api/v1/current/refresh-token", root, nil), http.StatusOK)
 
 	// Password change signs out every session, including the current one.
@@ -584,4 +588,24 @@ func TestAdminPasswordChangeSignsUserOut(t *testing.T) {
 		userForm(username, "Pass-2", "activated", roleID)), http.StatusOK)
 	expectStatus(t, "old session after admin password change", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusUnauthorized)
 	mustLogin(t, username, "Pass-2")
+}
+
+// jwtAuthTime reads the auth_time claim without verifying the token.
+func jwtAuthTime(t *testing.T, token string) float64 {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("not a JWT: %q", token)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claims struct {
+		AuthTime float64 `json:"auth_time"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatal(err)
+	}
+	return claims.AuthTime
 }

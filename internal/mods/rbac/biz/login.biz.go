@@ -56,6 +56,9 @@ func (a *Login) ParseUserID(c *gin.Context) (string, error) {
 		return "", err
 	}
 	userID := claims.Subject
+	if a.sessionExpired(claims) {
+		return "", errors.Unauthorized(config.ErrSessionExpiredID, "Session expired, please log in again")
+	}
 	if userID == rootID {
 		c.Request = c.Request.WithContext(util.NewIsRootUser(ctx))
 		return userID, nil
@@ -143,8 +146,9 @@ func (a *Login) ResponseCaptcha(ctx context.Context, w http.ResponseWriter, id s
 	return nil
 }
 
-func (a *Login) genUserToken(ctx context.Context, userID string) (*schema.LoginToken, error) {
-	token, err := a.Auth.GenerateToken(ctx, userID)
+// genUserToken issues a token for a session that began at sessionStart.
+func (a *Login) genUserToken(ctx context.Context, userID string, sessionStart time.Time) (*schema.LoginToken, error) {
+	token, err := a.Auth.GenerateToken(ctx, userID, jwtx.WithAuthTime(sessionStart))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +191,7 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 		userID := a.Config.General.Root.ID
 		ctx = logging.NewUserID(ctx, userID)
 		logging.Context(ctx).Info("Login by root")
-		return a.genUserToken(ctx, userID)
+		return a.genUserToken(ctx, userID, time.Now())
 	}
 
 	// get user info
@@ -233,7 +237,7 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 	logging.Context(ctx).Info("Login success", zap.String("username", formItem.Username))
 
 	// generate token
-	return a.genUserToken(ctx, userID)
+	return a.genUserToken(ctx, userID, time.Now())
 }
 
 func (a *Login) RefreshToken(ctx context.Context) (*schema.LoginToken, error) {
@@ -254,7 +258,17 @@ func (a *Login) RefreshToken(ctx context.Context) (*schema.LoginToken, error) {
 		}
 	}
 
-	token, err := a.genUserToken(ctx, userID)
+	// Keep the original login time, so refreshing cannot extend a session
+	// beyond MaxSessionHours.
+	sessionStart := time.Now()
+	if old := util.FromUserToken(ctx); old != "" {
+		claims, err := a.Auth.ParseClaims(ctx, old)
+		if err != nil {
+			return nil, errors.Unauthorized(config.ErrInvalidTokenID, "Invalid access token")
+		}
+		sessionStart = claims.SessionStart()
+	}
+	token, err := a.genUserToken(ctx, userID, sessionStart)
 	if err != nil {
 		return nil, err
 	}
@@ -437,4 +451,15 @@ func verifyRootPassword(configured, given string) bool {
 		return hash.CompareHashAndPassword(configured, given) == nil
 	}
 	return subtle.ConstantTimeCompare([]byte(configured), []byte(given)) == 1
+}
+
+// sessionExpired reports whether the session behind claims is older than
+// Middleware.Auth.MaxSessionHours.
+func (a *Login) sessionExpired(claims *jwtx.Claims) bool {
+	max := a.Config.Middleware.Auth.MaxSessionHours
+	if max <= 0 {
+		return false
+	}
+	start := claims.SessionStart()
+	return !start.IsZero() && time.Since(start) > time.Duration(max)*time.Hour
 }

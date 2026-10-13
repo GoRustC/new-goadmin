@@ -10,14 +10,14 @@ import (
 
 type Auther interface {
 	// Generate a JWT (JSON Web Token) with the provided subject.
-	GenerateToken(ctx context.Context, subject string) (TokenInfo, error)
+	GenerateToken(ctx context.Context, subject string, opts ...TokenOption) (TokenInfo, error)
 	// Invalidate a token by removing it from the token store.
 	DestroyToken(ctx context.Context, accessToken string) error
 	// Parse the subject (or user identifier) from a given access token.
 	ParseSubject(ctx context.Context, accessToken string) (string, error)
 	// ParseClaims validates a token, including the revocation store, and
 	// returns its claims.
-	ParseClaims(ctx context.Context, accessToken string) (*jwt.RegisteredClaims, error)
+	ParseClaims(ctx context.Context, accessToken string) (*Claims, error)
 	// Release any resources held by the JWTAuth instance.
 	Release(ctx context.Context) error
 }
@@ -110,19 +110,61 @@ type JWTAuth struct {
 	store Storer
 }
 
-func (a *JWTAuth) GenerateToken(ctx context.Context, subject string) (TokenInfo, error) {
+// Claims are the JWT claims issued by JWTAuth.
+type Claims struct {
+	jwt.RegisteredClaims
+	// AuthTime is when the user last authenticated with credentials. Tokens
+	// issued by a refresh keep the original value, so the age of a session
+	// can be bounded independently of individual token lifetimes.
+	AuthTime *jwt.NumericDate `json:"auth_time,omitempty"`
+}
+
+// SessionStart returns when the session began: AuthTime, or the issue time
+// for tokens issued before AuthTime existed.
+func (c *Claims) SessionStart() time.Time {
+	if c.AuthTime != nil {
+		return c.AuthTime.Time
+	}
+	if c.IssuedAt != nil {
+		return c.IssuedAt.Time
+	}
+	return time.Time{}
+}
+
+type tokenOptions struct {
+	authTime time.Time
+}
+
+// TokenOption customizes a generated token.
+type TokenOption func(*tokenOptions)
+
+// WithAuthTime sets the auth_time claim; by default it is the issue time.
+func WithAuthTime(t time.Time) TokenOption {
+	return func(o *tokenOptions) { o.authTime = t }
+}
+
+func (a *JWTAuth) GenerateToken(ctx context.Context, subject string, opts ...TokenOption) (TokenInfo, error) {
 	if len(a.opts.signingKey) == 0 {
 		return nil, ErrMissingSigningKey
 	}
 
 	now := time.Now()
 	expiresAt := now.Add(time.Duration(a.opts.expired) * time.Second)
+	o := tokenOptions{authTime: now}
+	for _, opt := range opts {
+		opt(&o)
+	}
 
-	token := jwt.NewWithClaims(a.opts.signingMethod, &jwt.RegisteredClaims{
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(expiresAt),
-		NotBefore: jwt.NewNumericDate(now),
-		Subject:   subject,
+	token := jwt.NewWithClaims(a.opts.signingMethod, &Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			NotBefore: jwt.NewNumericDate(now),
+			Subject:   subject,
+		},
+		// Whole seconds round-trip exactly through the float encoding;
+		// millisecond values lose up to 1 ms per refresh.
+		AuthTime: jwt.NewNumericDate(o.authTime.Truncate(time.Second)),
 	})
 
 	tokenStr, err := token.SignedString(a.opts.signingKey)
@@ -138,14 +180,14 @@ func (a *JWTAuth) GenerateToken(ctx context.Context, subject string) (TokenInfo,
 	return tokenInfo, nil
 }
 
-func (a *JWTAuth) parseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
+func (a *JWTAuth) parseToken(tokenStr string) (*Claims, error) {
 	var (
 		token *jwt.Token
 		err   error
 	)
 
 	for _, keyFunc := range a.opts.keyFuncs {
-		token, err = jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, keyFunc,
+		token, err = jwt.ParseWithClaims(tokenStr, &Claims{}, keyFunc,
 			jwt.WithExpirationRequired(), jwt.WithIssuedAt())
 		if err != nil || token == nil || !token.Valid {
 			continue
@@ -157,7 +199,7 @@ func (a *JWTAuth) parseToken(tokenStr string) (*jwt.RegisteredClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	return token.Claims.(*jwt.RegisteredClaims), nil
+	return token.Claims.(*Claims), nil
 }
 
 func (a *JWTAuth) callStore(fn func(Storer) error) error {
@@ -187,7 +229,7 @@ func (a *JWTAuth) ParseSubject(ctx context.Context, tokenStr string) (string, er
 	return claims.Subject, nil
 }
 
-func (a *JWTAuth) ParseClaims(ctx context.Context, tokenStr string) (*jwt.RegisteredClaims, error) {
+func (a *JWTAuth) ParseClaims(ctx context.Context, tokenStr string) (*Claims, error) {
 	if tokenStr == "" {
 		return nil, ErrInvalidToken
 	}

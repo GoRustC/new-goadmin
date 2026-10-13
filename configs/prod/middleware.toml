@@ -22,7 +22,8 @@ SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login"]
 SigningMethod = "HS512"
 SigningKey = "${GINADMIN_JWT_KEY}" # At least 32 bytes, e.g. from: openssl rand -hex 32
 OldSigningKey = ""
-Expired = 86400 # seconds
+Expired = 86400 # seconds, lifetime of one token
+MaxSessionHours = 168 # a session ends this long after the password login, however often it is refreshed; 0 = no limit
 
 [Middleware.Auth.Store]
 Type = "redis" # Logged-out tokens must be visible to every instance
