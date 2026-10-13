@@ -8,9 +8,9 @@ import (
 	"github.com/LyricTian/gin-admin/v10/pkg/logging"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redis_rate/v9"
+	"github.com/go-redis/redis_rate/v10"
 	"github.com/patrickmn/go-cache"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
@@ -100,7 +100,8 @@ func (s *RateLimiterMemoryStore) Allow(ctx context.Context, identifier string, p
 		return isAllow, nil
 	}
 
-	limiter := rate.NewLimiter(rate.Every(period), maxRequests)
+	// Refill maxRequests tokens per period, allowing a burst of maxRequests.
+	limiter := rate.NewLimiter(rate.Limit(float64(maxRequests)/period.Seconds()), maxRequests)
 	limiter.Allow()
 	s.cache.SetDefault(identifier, limiter)
 
@@ -136,7 +137,11 @@ func (s *RateLimiterRedisStore) Allow(ctx context.Context, identifier string, pe
 		return true, nil
 	}
 
-	result, err := s.limiter.Allow(ctx, identifier, redis_rate.PerSecond(maxRequests/int(period.Seconds())))
+	result, err := s.limiter.Allow(ctx, identifier, redis_rate.Limit{
+		Rate:   maxRequests,
+		Burst:  maxRequests,
+		Period: period,
+	})
 	if err != nil {
 		return false, err
 	}
