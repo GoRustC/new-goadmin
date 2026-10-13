@@ -52,7 +52,7 @@ func New(cfg Config) (*gorm.DB, error) {
 		dialector = postgres.Open(cfg.DSN)
 	case "sqlite3":
 		_ = os.MkdirAll(filepath.Dir(cfg.DSN), os.ModePerm)
-		dialector = sqlite.Open(cfg.DSN)
+		dialector = sqlite.Open(sqliteDSN(cfg.DSN))
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.DBType)
 	}
@@ -87,7 +87,7 @@ func New(cfg Config) (*gorm.DB, error) {
 			case "postgres":
 				open = postgres.Open
 			case "sqlite3":
-				open = sqlite.Open
+				open = func(dsn string) gorm.Dialector { return sqlite.Open(sqliteDSN(dsn)) }
 			default:
 				continue
 			}
@@ -134,6 +134,38 @@ func New(cfg Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(time.Duration(cfg.MaxIdleTime) * time.Second)
 
 	return db, nil
+}
+
+// sqliteBusyTimeoutMs is how long a connection waits for a lock held by
+// another connection before failing with SQLITE_BUSY.
+const sqliteBusyTimeoutMs = 5000
+
+// sqliteDSN makes concurrent writers wait instead of failing. SQLite allows
+// one writer at a time, and the database log hook writes to the same file
+// through its own connection. Two settings are needed:
+//   - busy_timeout: wait for a lock instead of failing immediately;
+//   - _txlock=immediate: take the write lock at BEGIN. A deferred transaction
+//     that reads first and writes later fails at once when another connection
+//     holds the write lock, because SQLite skips the busy handler there to
+//     avoid deadlocks.
+//
+// Settings already present in the DSN are kept.
+func sqliteDSN(dsn string) string {
+	var params []string
+	if !strings.Contains(dsn, "busy_timeout") {
+		params = append(params, fmt.Sprintf("_pragma=busy_timeout(%d)", sqliteBusyTimeoutMs))
+	}
+	if !strings.Contains(dsn, "_txlock") {
+		params = append(params, "_txlock=immediate")
+	}
+	if len(params) == 0 {
+		return dsn
+	}
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	return dsn + sep + strings.Join(params, "&")
 }
 
 func stringSliceToInterfaceSlice(s []string) []interface{} {
