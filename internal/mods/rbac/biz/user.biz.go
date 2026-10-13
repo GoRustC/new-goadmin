@@ -149,7 +149,7 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 	}
 	user.UpdatedAt = time.Now()
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	err = a.Trans.Exec(ctx, func(ctx context.Context) error {
 		if err := a.UserDAL.Update(ctx, user); err != nil {
 			return err
 		}
@@ -171,8 +171,12 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 			}
 		}
 
-		return a.Cache.Delete(ctx, config.CacheNSForUser, id)
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return a.invalidateUserCache(ctx, id)
 }
 
 // Delete the specified user from the data access object.
@@ -184,15 +188,19 @@ func (a *User) Delete(ctx context.Context, id string) error {
 		return errors.NotFound("", "User not found")
 	}
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	err = a.Trans.Exec(ctx, func(ctx context.Context) error {
 		if err := a.UserDAL.Delete(ctx, id); err != nil {
 			return err
 		}
 		if err := a.UserRoleDAL.DeleteByUserID(ctx, id); err != nil {
 			return err
 		}
-		return a.Cache.Delete(ctx, config.CacheNSForUser, id)
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return a.invalidateUserCache(ctx, id)
 }
 
 func (a *User) ResetPassword(ctx context.Context, id string) error {
@@ -232,4 +240,22 @@ func (a *User) GetRoleIDs(ctx context.Context, id string) ([]string, error) {
 		return nil, err
 	}
 	return userRoleResult.Data.ToRoleIDs(), nil
+}
+
+// userCacheRedeleteDelay is how long after a change the user cache entry is
+// deleted a second time. A variable so tests can shorten it.
+var userCacheRedeleteDelay = 2 * time.Second
+
+// invalidateUserCache drops the cached status and roles of a user after a
+// change has committed. A request that read the old state just before the
+// commit can still write it back after the first delete, so the entry is
+// deleted again after a short delay; the entry also expires on its own.
+func (a *User) invalidateUserCache(ctx context.Context, id string) error {
+	if err := a.Cache.Delete(ctx, config.CacheNSForUser, id); err != nil {
+		return err
+	}
+	time.AfterFunc(userCacheRedeleteDelay, func() {
+		_ = a.Cache.Delete(context.Background(), config.CacheNSForUser, id)
+	})
+	return nil
 }

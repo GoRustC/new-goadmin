@@ -86,7 +86,10 @@ func (a *Login) ParseUserID(c *gin.Context) (string, error) {
 	userCache := util.UserCache{
 		RoleIDs: roleIDs,
 	}
-	err = a.Cache.Set(ctx, config.CacheNSForUser, userID, userCache.String())
+	// Expire like the entry written at login, so a stale entry cannot outlive
+	// the configured period even if an invalidation is missed.
+	err = a.Cache.Set(ctx, config.CacheNSForUser, userID, userCache.String(),
+		time.Duration(a.Config.Dictionary.UserCacheExp)*time.Hour)
 	if err != nil {
 		return "", err
 	}
