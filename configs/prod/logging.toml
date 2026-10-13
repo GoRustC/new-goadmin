@@ -1,0 +1,28 @@
+[Logger]
+Debug = false
+Level = "info" # debug/info/warn/error
+CallerSkip = 1
+
+# Logs go to stdout as JSON. Enable the file output only if nothing collects stdout.
+[Logger.File]
+Enable = false
+Path = "data/log/ginadmin.log"
+MaxBackups = 20 # Files
+MaxSize = 64 # MB
+
+# Writes info and above to the logger table, which backs the /api/v1/loggers page.
+[[Logger.Hooks]]
+Enable = true
+Level = "info"
+Type = "gorm"
+MaxBuffer = 1024
+MaxThread = 2
+
+[Logger.Hooks.Options]
+Debug = "false"
+DBType = "${GINADMIN_DB_TYPE:-mysql}"
+DSN = "${GINADMIN_DB_DSN}"
+MaxOpenConns = "4"
+MaxIdleConns = "2"
+MaxLifetime = "86400"
+MaxIdleTime = "7200"

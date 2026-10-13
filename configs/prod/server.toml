@@ -1,0 +1,82 @@
+# Production configuration sample.
+#
+# Secrets and addresses are read from environment variables. Startup fails if a
+# required variable is missing or if the configuration does not validate.
+#
+#   Required:  GINADMIN_DB_DSN, GINADMIN_REDIS_ADDR, GINADMIN_JWT_KEY, GINADMIN_ROOT_PASSWORD
+#   Optional:  GINADMIN_HTTP_ADDR (default :8040), GINADMIN_DB_TYPE (default mysql),
+#              GINADMIN_REDIS_USERNAME, GINADMIN_REDIS_PASSWORD, GINADMIN_DEFAULT_LOGIN_PWD
+#
+# Start with: ginadmin start -d configs -c prod
+
+[General]
+AppName = "ginadmin"
+Version = "v10.1.0"
+Debug = false
+PprofAddr = "" # Keep empty, or bind to localhost only, e.g. "localhost:6060"
+DisableSwagger = true
+DisablePrintConfig = false # Secrets are masked when printed
+# Password (MD5 hash, as sent by the frontend) for new users created without one and
+# for password resets. Empty disables both.
+DefaultLoginPwd = "${GINADMIN_DEFAULT_LOGIN_PWD:-}"
+MenuFile = "menu.json"
+DenyOperateMenu = true
+
+[General.HTTP]
+Addr = "${GINADMIN_HTTP_ADDR:-:8040}"
+ShutdownTimeout = 10
+ReadTimeout = 60
+WriteTimeout = 60
+IdleTimeout = 10
+CertFile = ""
+KeyFile = ""
+# Reverse proxies allowed to set X-Forwarded-For. Set this when running behind
+# nginx or a load balancer, e.g. ["127.0.0.1"] or ["10.0.0.0/8"].
+TrustedProxies = []
+
+[General.Root] # Super Administrator Account
+ID = "root"
+Username = "admin"
+# MD5 hash as sent by the frontend, or a bcrypt hash of it. Empty disables root login.
+Password = "${GINADMIN_ROOT_PASSWORD}"
+Name = "Admin"
+
+[Storage]
+
+[Storage.Cache]
+# Redis is required for more than one instance: user cache and casbin reload
+# signals must be shared.
+Type = "redis"
+Delimiter = ":"
+
+[Storage.Cache.Redis]
+Addr = "${GINADMIN_REDIS_ADDR}"
+Username = "${GINADMIN_REDIS_USERNAME:-}"
+Password = "${GINADMIN_REDIS_PASSWORD:-}"
+DB = 1
+
+[Storage.DB]
+Debug = false
+Type = "${GINADMIN_DB_TYPE:-mysql}" # mysql/postgres
+# MySQL:    user:pass@tcp(host:3306)/ginadmin?charset=utf8mb4&parseTime=True&loc=Local
+# Postgres: host=db user=ginadmin password=xxx dbname=ginadmin port=5432 sslmode=require
+DSN = "${GINADMIN_DB_DSN}"
+MaxLifetime = 86400
+MaxIdleTime = 3600
+MaxOpenConns = 100
+MaxIdleConns = 50
+TablePrefix = ""
+AutoMigrate = true # Creates and extends tables; never drops columns
+
+[Util]
+
+[Util.Captcha]
+Length = 4
+Width = 400
+Height = 160
+# Captchas are kept in process memory. With more than one instance, route a
+# client's captcha and login requests to the same instance (sticky sessions).
+CacheType = "memory"
+
+[Dictionary]
+UserCacheExp = 4 # hours

@@ -1,0 +1,57 @@
+[Middleware]
+
+[Middleware.Recovery]
+Skip = 3
+
+[Middleware.CORS]
+Enable = false # Serve the frontend from the same origin, or set AllowOrigins explicitly
+
+[Middleware.Trace]
+RequestHeaderKey = "X-Request-Id"
+ResponseTraceKey = "X-Trace-Id"
+
+[Middleware.Logger]
+SkippedPathPrefixes = []
+
+[Middleware.CopyBody]
+MaxContentLen = 4194304 # 4MB
+
+[Middleware.Auth]
+Disable = false
+SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login"]
+SigningMethod = "HS512"
+SigningKey = "${GINADMIN_JWT_KEY}" # At least 32 bytes, e.g. from: openssl rand -hex 32
+OldSigningKey = ""
+Expired = 86400 # seconds
+
+[Middleware.Auth.Store]
+Type = "redis" # Logged-out tokens must be visible to every instance
+Delimiter = ":"
+
+[Middleware.Auth.Store.Redis]
+Addr = "" # Empty uses Storage.Cache.Redis
+Username = ""
+Password = ""
+DB = 2
+
+[Middleware.RateLimiter]
+Enable = false # Enable and tune for your traffic
+Period = 10 # seconds
+MaxRequestsPerIP = 1000
+MaxRequestsPerUser = 500
+
+[Middleware.RateLimiter.Store]
+Type = "redis"
+
+[Middleware.RateLimiter.Store.Redis]
+Addr = "" # Empty uses Storage.Cache.Redis
+Username = ""
+Password = ""
+DB = 10
+
+[Middleware.Casbin]
+Disable = false
+SkippedPathPrefixes = ["/api/v1/captcha/", "/api/v1/login", "/api/v1/current/"]
+LoadThread = 2
+AutoLoadInterval = 3 # seconds
+ModelFile = "rbac_model.conf"
