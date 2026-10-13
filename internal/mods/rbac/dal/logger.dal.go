@@ -2,7 +2,6 @@ package dal
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
@@ -28,43 +27,37 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 		opt = opts[0]
 	}
 
-	loggerTable, err := util.TableName(a.DB, new(schema.Logger))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	userTable, err := util.TableName(a.DB, new(schema.User))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// util.GetDB keeps the query inside the caller's transaction, if any.
-	db := util.GetDB(ctx, a.DB).Table(fmt.Sprintf("%s AS a", loggerTable))
-	db = db.Joins(fmt.Sprintf("left join %s b on a.user_id=b.id", userTable))
-	db = db.Select("a.*,b.name as user_name,b.username as login_name")
-
+	// Filter and count on the logger table alone. The user name filter is a
+	// subquery and user names are filled in only for the returned page, so
+	// counting a large table never joins users.
+	db := GetLoggerDB(ctx, a.DB)
 	if v := params.Level; v != "" {
-		db = db.Where("a.level = ?", v)
+		db = db.Where("level = ?", v)
 	}
 	if v := params.LikeMessage; len(v) > 0 {
-		db = db.Where(util.ContainsCondition("a.message", v))
+		db = db.Where(util.ContainsCondition("message", v))
 	}
 	if v := params.TraceID; v != "" {
-		db = db.Where("a.trace_id = ?", v)
+		db = db.Where("trace_id = ?", v)
 	}
 	if v := params.LikeUserName; v != "" {
-		db = db.Where(util.ContainsCondition("b.username", v))
+		users := GetUserDB(ctx, a.DB).Select("id").Where(util.ContainsCondition("username", v))
+		db = db.Where("user_id IN (?)", users)
 	}
 	if v := params.Tag; v != "" {
-		db = db.Where("a.tag = ?", v)
+		db = db.Where("tag = ?", v)
 	}
 	if start, end := params.StartTime, params.EndTime; start != "" && end != "" {
-		db = db.Where("a.created_at BETWEEN ? AND ?", start, end)
+		db = db.Where("created_at BETWEEN ? AND ?", start, end)
 	}
 
 	var list schema.Loggers
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+	if err := a.fillUserNames(ctx, list); err != nil {
+		return nil, err
 	}
 
 	queryResult := &schema.LoggerQueryResult{
@@ -78,4 +71,35 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 func (a *Logger) DeleteBefore(ctx context.Context, t time.Time) (int64, error) {
 	result := GetLoggerDB(ctx, a.DB).Where("created_at < ?", t).Delete(new(schema.Logger))
 	return result.RowsAffected, errors.WithStack(result.Error)
+}
+
+// fillUserNames sets UserName and LoginName from the user table.
+func (a *Logger) fillUserNames(ctx context.Context, list schema.Loggers) error {
+	idSet := make(map[string]struct{})
+	for _, l := range list {
+		if l.UserID != "" {
+			idSet[l.UserID] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	var users schema.Users
+	if err := GetUserDB(ctx, a.DB).Select("id", "name", "username").Where("id IN (?)", ids).Find(&users).Error; err != nil {
+		return errors.WithStack(err)
+	}
+	byID := make(map[string]*schema.User, len(users))
+	for _, u := range users {
+		byID[u.ID] = u
+	}
+	for _, l := range list {
+		if u, ok := byID[l.UserID]; ok {
+			l.UserName, l.LoginName = u.Name, u.Username
+		}
+	}
+	return nil
 }
