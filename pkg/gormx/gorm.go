@@ -182,13 +182,18 @@ func createDatabaseWithMySQL(dsn string) error {
 		return err
 	}
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/", cfg.User, cfg.Passwd, cfg.Addr))
+	// Connect without selecting the database, keeping every other setting of
+	// the original DSN: network (tcp or unix socket), TLS, timeouts and so on.
+	dbName := cfg.DBName
+	server := cfg.Clone()
+	server.DBName = ""
+	db, err := sql.Open("mysql", server.FormatDSN())
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	query := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET = `utf8mb4`;", cfg.DBName)
+	query := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET = `utf8mb4`;", strings.ReplaceAll(dbName, "`", "``"))
 	_, err = db.Exec(query)
 	return err
 }
