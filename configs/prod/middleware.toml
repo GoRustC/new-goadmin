@@ -35,10 +35,11 @@ Password = ""
 DB = 2
 
 [Middleware.RateLimiter]
-Enable = false # Enable and tune for your traffic
+# Requires General.HTTP.TrustedProxies to be set when behind a proxy.
+Enable = true
 Period = 10 # seconds
-MaxRequestsPerIP = 1000
-MaxRequestsPerUser = 500
+MaxRequestsPerIP = 300 # per client IP, for requests without a valid token
+MaxRequestsPerUser = 600 # per signed-in user
 
 [Middleware.RateLimiter.Store]
 Type = "redis"

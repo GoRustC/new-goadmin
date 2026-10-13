@@ -15,7 +15,7 @@ Version = "v10.1.0"
 Debug = false
 PprofAddr = "" # Keep empty, or bind to localhost only, e.g. "localhost:6060"
 DisableSwagger = true
-DisablePrintConfig = false # Secrets are masked when printed
+DisablePrintConfig = true # Multi-line output confuses line-based log collectors; secrets are masked if enabled
 # Password (MD5 hash, as sent by the frontend) for new users created without one and
 # for password resets. Empty disables both.
 DefaultLoginPwd = "${GINADMIN_DEFAULT_LOGIN_PWD:-}"
@@ -32,9 +32,14 @@ ReadHeaderTimeout = 10 # seconds
 MaxHeaderBytes = 1048576 # 1MB
 CertFile = ""
 KeyFile = ""
-# Reverse proxies allowed to set X-Forwarded-For. Set this when running behind
-# nginx or a load balancer, e.g. ["127.0.0.1"] or ["10.0.0.0/8"].
+# Reverse proxies allowed to set X-Forwarded-For. Behind nginx or a load
+# balancer this MUST list them, e.g. ["127.0.0.1"] or ["10.0.0.0/8"]: otherwise
+# every client appears as the proxy and shares one rate limit bucket.
 TrustedProxies = []
+
+[General.LoginLock]
+MaxFailures = 5 # failed logins before an account name is locked
+LockMinutes = 15
 
 [General.Root] # Super Administrator Account
 ID = "root"
@@ -60,13 +65,16 @@ DB = 1
 [Storage.DB]
 Debug = false
 Type = "${GINADMIN_DB_TYPE:-mysql}" # mysql/postgres
-# MySQL:    user:pass@tcp(host:3306)/ginadmin?charset=utf8mb4&parseTime=True&loc=Local
-# Postgres: host=db user=ginadmin password=xxx dbname=ginadmin port=5432 sslmode=require
+# Include timeouts, so a network failure fails requests instead of hanging them:
+# MySQL:    user:pass@tcp(host:3306)/ginadmin?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=30s&writeTimeout=30s
+# Postgres: host=db user=ginadmin password=xxx dbname=ginadmin port=5432 sslmode=require connect_timeout=5
 DSN = "${GINADMIN_DB_DSN}"
 MaxLifetime = 86400
 MaxIdleTime = 3600
-MaxOpenConns = 100
-MaxIdleConns = 50
+# Keep instances x (MaxOpenConns + log hook MaxOpenConns) below the database's
+# max_connections (MySQL default 151, PostgreSQL default 100).
+MaxOpenConns = 25
+MaxIdleConns = 10
 TablePrefix = ""
 AutoMigrate = true # Creates and extends tables; never drops columns
 
@@ -88,3 +96,4 @@ KeyPrefix = "captcha:"
 
 [Dictionary]
 UserCacheExp = 4 # hours
+LoggerRetentionDays = 90 # delete logger table rows older than this; 0 keeps all
