@@ -1,209 +1,144 @@
-# gin-admin 作为通用底座的只读审计清单
+# gin-admin 底座审计报告（第二轮）
 
-日期：2026-09-26
-范围：安全、配置与部署、代码结构、可扩展性、测试与工程化
-环境：Go 1.27，依赖已升级（纯 Go sqlite、badger v4、jwt v5、stdlib errors/json）
+日期：2026-10-13
+范围：安全、配置与部署、代码结构、可扩展性、测试与工程化，外加对第一轮之后全部改动的逐行审查
+环境：Go 1.27.1；测试机 Ubuntu 26.04（VMware），MySQL 8.4、PostgreSQL 18、Redis 8
+第一轮审计的完整清单见 git 历史（提交 540a33c 中的本文件）。
 
-## 总体结论
+## 结论
 
-作为单项目脚手架合格，作为多个下游项目的共享底座**目前不合格**。硬伤集中在三处：
+后端在 MySQL 或 PostgreSQL 加 Redis 上，按 `configs/prod` 跑通了全部接口和主要异常场景。第一轮的必须修项除第 8 项外均已完成，本轮测试又发现并修复了 7 个缺陷，其中 1 个是未登录即可永久打挂登录的拒绝服务。
 
-1. 默认密钥与默认口令让所有下游继承同一套可伪造凭证。
-2. `internal/` 加全局 `config.C` 决定了下游只能 fork 改名，无法持续合并 upstream。
-3. 集成测试包本身就跑不起来。
+但还不能直接作为生产底座：下面"必须修"里还有 10 项，其中 3 项已在测试机上实测复现（进程假活、MySQL socket 连不上、环境变量带引号启动失败），另有一个可以让被冻结用户继续使用系统的缓存绕过。
 
-`pkg/util/gin.go:118` 的 vet 修复（`errors.InternalServerError("", "%s", err.Error())`）正确且完整，全仓库无同类问题，可直接提交。
+## 测试与验证
 
-已核对无问题：bcrypt 密码哈希与 `crypto/rand` 用法正确；jwt v5 keyFunc 拒绝 alg=none 与 RS 混淆；Casbin 路径匹配无绕过面，enforcer 为 nil 时 fail-closed；SQL 全部参数化，Order/Select 字段均为服务端常量；wire_gen 与 swagger 三份生成物与源码同步；`go build`、`go vet`、`gofmt`、`go mod verify`、`go mod tidy -diff` 全部干净；sqlite 已是纯 Go，`CGO_ENABLED=0` 构建通过；`.DS_Store` 未被跟踪。
-
----
-
-## 修复进度（2026-10-13）
-
-必须修 12 项中已完成 11 项，剩余第 8 项待定。
-
-| 项 | 状态 | 提交 |
+| 测试 | 环境 | 结果 |
 |---|---|---|
-| JWT 默认密钥 | 已修：无内置密钥，非 debug 模式必须配置不少于 32 字节的密钥，拒绝旧公开值 | c011759 |
-| token 与口令入日志 | 已修：不再记录请求体、响应体和签发的 token | c011759 |
-| gzip 解压无上限 | 已修：解压后同样受 `MaxContentLen` 限制 | c011759 |
-| 启动打印密钥 | 已修：打印配置时对密码、密钥、DSN 脱敏 | c011759 |
-| pprof 经 Prometheus 端口暴露 | 已修：Prometheus 集成已删除，pprof 改用私有 mux | c011759 |
-| 默认口令与 root 设计 | 已修：无内置默认口令；root 密码恒定时间比较、支持 bcrypt、为空即禁用；非 debug 模式拒绝公开默认值 | a973f3c |
-| 配置无校验、无环境变量 | 已修：支持 `${NAME}` 与 `${NAME:-default}` 引用，启动时校验配置 | a973f3c |
-| 模块路径与 `internal/` | **未修**：需要先决定下游是 fork 后改名，还是作为库引入 | — |
-| 全局 `config.C` | 已修：schema 不再读配置，biz 与 rbac 通过 wire 注入配置 | 5fb9dd1 |
-| Casbin 多实例与落盘 | 已修：策略只在内存加载，撤销权限立即生效，修复计时器竞态，内存缓存下给出多实例警告 | a973f3c |
-| 集成测试 panic | 已修：使用临时工作目录并自动建表，Redis 测试未配置时跳过 | c011759 |
-| README 过期 | 已处理：旧 README 已删除，尚未编写新 README | 540a33c |
+| 全部单元测试与集成测试 | 本机 | 通过 |
+| 竞态检测 `go test -race ./...` | 本机 | 通过，无竞态报告 |
+| 端到端测试，覆盖全部 26 个接口：验证码、登录、按角色放行与拒绝、授权与撤权实时生效、冻结与删除用户终止会话、改密、刷新 token、登出黑名单跨实例生效、错误格式、请求体与 gzip 炸弹限制、并发验证码攻击 | SQLite（日常 `go test`）、MySQL + Redis、PostgreSQL + Redis | 全部通过；各连续运行 3 遍均通过 |
+| 按生产配置启动、重启 | 测试机，MySQL 与 PostgreSQL | 正常，日志无错误、无密钥泄露，Swagger 关闭 |
+| 运维故障场景 | 测试机 | 见下表 |
 
-修复过程中发现并修复的额外问题：日志 hook 与业务共用 SQLite 文件时并发写入会报 `database is locked`，已为 SQLite 连接加上忙等待和立即加锁的事务模式（f603faa）。
+| 故障场景 | 实测结果 |
+|---|---|
+| SIGTERM 停止 | 0.1 秒内退出，退出码 0 |
+| 停止时有请求进行中 | 已接收的请求均返回 200 |
+| 启动时数据库或 Redis 不可用 | 立即失败退出 |
+| 运行中 MySQL 停止后再停服务 | 0.1 秒内正常退出，日志写入失败但不卡住（网络黑洞时可能不同，未测） |
+| 端口被占用 | **进程不退出也不监听**，见必须修第 1 项 |
+| MySQL 使用 unix socket | **启动失败**，见必须修第 2 项 |
+| 环境变量含双引号 | **配置解析失败**，见必须修第 7 项 |
+| 同一验证码 16 路并发登录 | 修复前第 25 轮后验证码接口永久卡死；修复后 30 轮无异常 |
 
-建议修中顺带完成的：dal 绕过事务上下文（5fb9dd1）、wire 生成工具版本已用 `go.mod` 的 `tool` 指令固定（5fb9dd1）。
+## 本轮已修复
+
+| 问题 | 来源 | 提交 |
+|---|---|---|
+| 验证码库内存存储并发时死锁，未登录即可让所有人无法登录，健康检查仍为 200 | 原项目依赖 | 2bcabf7 |
+| `Util.Captcha.CacheType = "redis"` 从未生效，多实例必须会话保持 | 原项目 | 2bcabf7 |
+| Casbin 重载信号精度为秒，同一秒内的第二次权限变更会丢失 | 原项目 | 5065bdc |
+| 验证码图片的禁止缓存响应头在写出图片后才设置，从未生效 | 原项目 | e92767a |
+| Casbin 策略行末尾多一个空格，所有非 root 请求被拒绝 | 第一轮修复引入的回归 | abc9cf1 |
+| PostgreSQL 下日志查询 `join user` 未加引号，日志页面 500 | 原项目 | 23bc11a |
+| 日志表只由日志 hook 创建，关闭 hook 后日志页面 500 | 原项目 | 07b6fa2 |
+
+第一轮必须修项的修复进度：除第 8 项（模块路径与 `internal/`）外全部完成，见 c011759、a973f3c、5fb9dd1。
 
 ---
 
 ## 必须修
 
-- **[安全] JWT 签名密钥有内置默认值，可离线伪造 root**
-  `internal/config/middleware.go:39` 默认 `XnEsT0S@`；`pkg/jwtx/jwt.go:22` 第二个兜底 key；`configs/dev/middleware.toml:31` 同值。伪造 `sub=root` 后经 `internal/bootstrap/http.go:172-175` 直接跳过 Casbin。
-  修法：删掉两处默认值，密钥为空或等于已知值时启动失败。
+1. **端口绑定失败时进程假活**（实测）
+   `internal/bootstrap/http.go:40-52` 在 goroutine 里 `ListenAndServe`，失败只记一条日志，进程继续运行。systemd 认为服务正常，不会重启，但没有任何端口在监听。修法：先 `net.Listen`，失败时同步返回错误。
 
-- **[安全] 登录 token 与口令 MD5 写进日志，且可经 API 读回**
-  `internal/mods/rbac/biz/login.biz.go:134` 以 Info 级打印完整 token；`pkg/middleware/logger.go:60-69,77-81` 记录 POST/PUT 请求体和响应体；`configs/dev/logging.toml:12-15` 把 Info 日志写入 `logger` 表；`internal/mods/rbac/main.go:105-108` 的 `/api/v1/loggers` 原样返回。
-  修法：删除 :134 的 token 日志；Logger 中间件对 `/api/v1/login`、`/api/v1/current/password` 等路径跳过 body 或脱敏。
+2. **MySQL 建库时重新拼接连接串，丢掉原有参数**（实测）
+   `pkg/gormx/gorm.go:185` 写死 `tcp(...)`。unix socket 地址被当成主机名，启动失败；`tls`、`timeout` 等参数也会丢失。修法：`cfg.Clone()` 后清空库名再 `FormatDSN()`，或改为可关闭的开关。
 
-- **[安全] gzip 请求解压后大小无上限，未鉴权即可打爆内存**
-  `pkg/middleware/copybody.go:43-48` 的 `MaxBytesReader` 只限压缩流，解压输出不受限；该中间件在 `http.go:136` 位于 Auth（`:142`）之前。
-  修法：解压 reader 再套 `io.LimitReader`，默认 `MaxContentLen` 降到 1–4MB。
+3. **被冻结或被撤权的用户可以绕过**
+   `internal/mods/rbac/biz/login.biz.go:89` 写入的用户缓存没有过期时间；`:62-68` 缓存命中时不再检查用户状态；`user.biz.go:174,194` 在事务提交前删除缓存。被冻结的用户在"删缓存后、提交前"发出的请求，会读到旧状态并写回一份永不过期的缓存，此后冻结、删除、撤权对其 token 全部失效。修法：缓存加过期时间，提交后再删缓存，缓存中带上用户状态。
 
-- **[安全/配置] 启动时全量打印配置，含 DSN、Redis 密码、JWT 密钥、root 密码**
-  `internal/config/config.go:150-157`，由 `bootstrap.go:42` 调用，`DisablePrintConfig` 默认 false（`config.go:25`）。daemon 模式下落到 `cmd/start.go:67-76` 的 0666 日志文件。
-  修法：默认关闭，或对 `Password/DSN/SigningKey` 脱敏。
+4. **Casbin 重载信号在事务提交前写出**
+   `internal/mods/rbac/biz/role.biz.go:98,148,172`、`menu.biz.go:457,496`。轮询若恰好落在写信号与提交之间，会加载提交前的旧数据并把信号标记为已处理，撤销的权限一直有效。修法：在 `Trans.Exec` 成功返回后再写信号。
 
-- **[安全/部署] 开启 Prometheus 后 pprof 无鉴权暴露在 9100，且库代码 `log.Fatal` 可杀进程**
-  `bootstrap.go:7` 匿名导入 pprof 注册到 DefaultServeMux；`pkg/promx/prom.go:134,147` 用 `nil` handler 监听所有网卡，Basic Auth 只包 `/metrics`；`config.go:101-102` 默认 `admin/admin`。
-  修法：pprof 与 metrics 各用独立 `http.NewServeMux`；去掉 admin/admin 默认值。
+5. **`?accessToken=` 携带的 token 会写进数据库日志，可经接口读回**
+   `pkg/util/gin.go:29-31` 接受查询串 token；`pkg/middleware/logger.go:43` 记录完整 `RequestURI`；生产配置的日志 hook 把 Info 级请求日志写入 logger 表；有 `/api/v1/loggers` 权限的用户可读到他人（含 root）的 token。修法：去掉查询串 token，或日志只记 `URL.Path`。
 
-- **[安全] 默认口令与 root 账号设计**
-  `config.go:26` `DefaultLoginPwd` 是 MD5("abc-123")，`user.biz.go:97,202` 用它给新建和重置的用户；`config.go:39-44` 与 `configs/dev/server.toml:24` 的 root 密码是公开 MD5，`login.biz.go:152-155` 用 `!=` 直接比较（非常量时间）。
-  修法：新建/重置随机口令并返回管理员，或加首次登录改密标记；root 密码存 bcrypt 并用 `CompareHashAndPassword`。
+6. **用户与角色管理权限没有上限，等同超级管理员**
+   `internal/mods/rbac/biz/user.biz.go:132-175`：有编辑用户权限的人可以给自己加任意角色、改任意非 root 用户的密码。`role.biz.go:110-151`：有编辑角色权限的人可以把任意菜单挂到自己的角色上。修法：只能授予自己已有的角色和菜单，禁止修改自己的角色，修改他人密码单独授权。
 
-- **[配置部署] 配置无校验、无环境变量注入**
-  `internal/config/parse.go:30-84` 只做 defaults 加 json/toml 合并，全仓 `Getenv/LookupEnv/ExpandEnv` 零命中。容器化部署下密钥只能写进 toml。
+7. **环境变量按原文替换进 TOML，不做转义**（实测）
+   `internal/config/validate.go:22-41`，由 `parse.go:48` 在解析前调用。值含 `"` 时整个文件解析失败，报错看不出与环境变量有关；值含 `\t`、`\n` 时会被悄悄改成控制字符。注释里写 `${X}` 也会被要求设置该变量。修法：解析后再展开字符串值，或按 TOML 规则转义。
 
-- **[结构] 模块路径 `github.com/LyricTian/gin-admin/v10` 加 `internal/` 封装，下游无法 import**
-  `go.mod:1`；`internal/config`、`internal/wirex`、`internal/bootstrap`、`internal/mods` 全部不可复用，54/95 个文件写死路径。
-  修法：把骨架移出 `internal/`，或明确 fork 模式并提供改名脚本与 upstream 合并流程。
+8. **标准库有 10 个代码可达的漏洞**
+   Go 1.27.1 的 net/http、HTTP/2、crypto/tls、html/template 等，1.27.2 已修复；`golang.org/x/net` 需升到 v0.60.0。修法：升级 Go 与 x/net 后重新构建。
 
-- **[结构] schema 与 biz 直接读全局 `config.C`**
-  `internal/mods/rbac/schema/user.go:34` 等 7 个 `TableName()`（menu.go:45、role.go:31、user_role.go:21、role_menu.go:20、menu_resource.go:21、logger.go:26）；`login.biz.go:34-35,152-157`、`user.biz.go:97,202`。任何单测都得先 `config.MustLoad`（`test/test.go:23-24`），wire 注入被架空，一进程只能一份配置。表前缀同时走 `pkg/gormx/gorm.go:61-63` NamingStrategy 与手写 TableName 两条机制。
+9. **Casbin 加载时单个角色查询失败会被当作成功**
+   `internal/mods/rbac/casbin.go:123-124` 只记日志后 `continue`，残缺的策略照样替换上去并标记已处理。一次短暂的数据库故障，会让这些角色的用户在下一次权限变更前一直被拒绝。修法：任一角色失败即返回错误，保留旧策略，下个周期重试。
 
-- **[扩展] Casbin 多实例不刷新、策略落盘、配置为 0 时 panic**
-  `internal/mods/rbac/casbin.go:189-215` 靠 cache key 轮询，默认 cache 是 memory（`config.go:49`），多实例永不刷新；`:113-121` 每次重载写 `configs/gen_rbac_policy.csv`，只读文件系统下启动失败；`:191` `AutoLoadInterval=0` 时 `NewTicker` 在 goroutine 里 panic。
-
-- **[测试] 集成测试包在 `init()` 阶段 panic，`go test ./...` 整体是红的**
-  `test/test.go:24` 只加载默认值，`config.go:73` `AutoMigrate` 默认 false，`casbin.go:57-64` 查 `role` 表报 no such table。`pkg/cachex/redis_test.go:14-16` 硬编码 `localhost:6379` 无 skip，失败前重试 35 秒。
-
-- **[工程] README 指向不存在的工具链**
-  `README.md:61,69,148,158` 的 `make` 目标、`:77,228-229` 的 Dockerfile/Makefile 均不存在；`:218,220` 仍列出已删除的 `pkg/mail`、`pkg/oss`；`:38` 写 Go 1.19+ 而 `go.mod:3` 要求 1.27。`README_EN.md` 同行号。
+10. **模块路径加 `internal/`，下游无法作为库引入**（第一轮第 8 项，未修）
+    `go.mod:1` 仍为 `github.com/LyricTian/gin-admin/v10`。需要先决定下游是 fork 后改名，还是作为库引入。
 
 ---
 
 ## 建议修
 
-- **[结构] `pkg/errors` 设计与标准库冲突**
-  `errors.go:254` 的 `As(err)` 签名与标准库不同，导入本包的文件写不了 `errors.As(err, &t)`；`:21-23` `WithStack` 已是空操作但全仓 53 处仍在调；`:246` `FromError`、`:222-223` `Equal` 用类型断言，经 `:40` `Wrapf` 包装过的 `*Error` 会被当纯字符串；`:291` `MultiError.Error()` 对 `[]error` 做 `json.Marshal` 丢内容。
+**安全**
+- 菜单资源可注入 Casbin 策略：`casbin.go:111` 直接拼接 `res.Path`，`schema/menu.go:149` 不校验。path 含换行可给任意角色加权限，含逗号可让鉴权整体 500。前提是 `DenyOperateMenu=false`（结构体默认值）。
+- 改密码、重置密码不吊销已有 token；刷新 token 可无限续期，没有绝对会话上限：`login.biz.go:205,309`、`user.biz.go:198-221`。
+- `OldSigningKey` 没有长度校验，可被离线爆破后伪造 root：`internal/wirex/injector.go:39-41`。
+- 非 debug 模式仍接受明文 MD5 的 root 密码；`cmd/start.go:35` 默认 `-c dev`，忘加 `-c prod` 就以公开口令运行。
+- 跳过列表是裸前缀匹配，下游新增 `/api/v1/login-xxx` 会绕过鉴权：`pkg/middleware/middleware.go:12-20`。
+- 登录可枚举账号（冻结提示先于密码校验、响应时间差），无失败次数限制，生产样例未开启限流：`login.biz.go:175`。
+- 超长 `X-Request-Id` 让该请求的数据库日志整条写入失败，审计日志可被规避：`trace.go:37`、`schema/logger.go:13`。
+- resolver 的 DSN 明文写入日志：`pkg/gormx/gorm.go:109-110`。
+- 缺少安全响应头（`X-Content-Type-Options`、`X-Frame-Options`、HSTS）；主服务器未设 `ReadHeaderTimeout`。
+- 生产校验缺口：非 debug 模式未拒绝 `Casbin.Disable=true`、非回环的 `PprofAddr`、开启限流但上限为 0。
 
-- **[结构] `ResError` 原地修改共享错误对象**
-  `pkg/util/gin.go:131,134` 改写 `ierr.Detail/Code`，而 `pkg/middleware/casbin.go:10` 的 `ErrCasbinDenied` 是包级单例，带 status 参数调用会永久污染并有数据竞争。
+**配置与运维**
+- 日志 caller 偏一层且无法设为正确的 0：`configs/prod/logging.toml:4`、`pkg/logging/init.go:104-107`。
+- 连接池 `MaxOpenConns=100` 加 hook 连接，两个实例即超过 MySQL 默认上限，单实例即可能超过 PostgreSQL 默认上限：`configs/prod/server.toml`。
+- 示例连接串没有超时参数，数据库网络中断时请求和停机都可能长时间挂起。
+- 多实例同时首次启动，迁移与菜单导入会冲突，菜单可能重复：`rbac/main.go`、`menu.biz.go:57-82`。建议拆出单独的迁移命令。
+- logger 表无限增长，没有清理机制；超长 message 在 MySQL 严格模式和 PostgreSQL 下写入失败。
+- 启动失败路径不清理日志 hook，退出方式为 panic：`bootstrap.go:87-94`、`cmd/start.go:100`。
+- `TrustedProxies` 默认为空：部署在 nginx 后面而未配置时，所有未登录请求共用一个限流桶。需写进部署说明。
+- 新增的配置校验会拒绝部分旧配置：`RateLimiter.Store.Type` 为空、`Storage.DB.Type` 大小写不一致。
+- Redis 键没有应用级前缀，多套环境共用一个 Redis 库时会互相覆盖。
 
-- **[结构] biz 依赖 gin、无接口、不可 mock**
-  `login.biz.go:19,33,104`；`http.go:145` 穿透四层具体类型 `injector.M.RBAC.LoginAPI.LoginBIZ.ParseUserID`；`user.biz.go:18-22` 全是具体指针。仓库没有一个 biz 单测。
+**代码与结构**
+- 菜单按 `code` 路径查询从第二级开始查错，应传 `lastMenu.ID`：`menu.biz.go:227`。
+- `ResError` 原地修改包级单例错误对象，并发 403 必然产生数据竞争：`pkg/util/gin.go:134`、`pkg/middleware/casbin.go:10`。
+- 日志 hook 的 `Write` 与 `Flush` 有先检查后发送的竞态，停机时可能 panic：`pkg/logging/hook.go:97-120`。
+- Casbin 的 autoLoad goroutine 在 Release 后泄漏：`casbin.go:219,238`。
+- gzip 解析失败时降级读取会截断请求体，所有读错误都报 413：`pkg/middleware/copybody.go:44-60`。
+- 依赖注入只完成一半：`BuildInjector` 没有配置参数，`InitDB`、`InitCacher`、`InitAuth` 和 bootstrap 仍直接读 `config.C`。
+- 新增一个模块要改 7 处共享文件并重新生成两类代码；`http.go` 写死了 `injector.M.RBAC`。建议定义 `Module` 接口。
+- 数据库差异：PostgreSQL 的 LIKE 区分大小写；日志时间范围按字符串比较；`OrderByParams.ToSQL` 不给字段名加引号。
+- 菜单可移动到自己的子孙节点下形成环：`menu.biz.go:382-405`。
+- N+1 查询：`menu.biz.go:201,258,427,490`，`casbin.go:103-126`。
+- 错误 ID 与状态码不统一，"已存在"返回 400 而非 409；`pkg/errors` 的 `As` 签名与标准库冲突。
 
-- **[扩展] 新增一个模块要改 6 处并重跑两个未固定版本的 CLI**
-  `internal/mods/mods.go:18,22,26,43,51`、`internal/wirex/wire_gen.go`、`configs/menu.json`、swagger 三份生成物加 `internal/swagger/v3/openapi.json` 手动同步、`configs/dev/middleware.toml:29,72`。`go.mod` 无 `tool` 指令固定 wire/swag。
-
-- **[配置] `/openapi.json` 路由指向不存在的文件**
-  `http.go:60` 提供 `WorkDir/openapi.json`，`configs/` 下没有，线上必 404。
-
-- **[结构] 两套 Redis 客户端并存**
-  `pkg/middleware/ratelimiter.go:11-12` 用 `go-redis/redis/v8` 加 `redis_rate/v9`，`pkg/cachex/redis.go:9` 用 `redis/go-redis/v9`。升 `redis_rate/v10` 可统一。
-
-- **[安全] 限流语义错误**
-  `ratelimiter.go:103` `rate.NewLimiter(rate.Every(period), maxRequests)` 实际是"突发 N 后每周期只放 1 个"；`:139` 整除，`MaxRequestsPerIP < Period` 时 `PerSecond(0)` 全部拒绝。
-
-- **[安全] 信任所有代理的 X-Forwarded-For**
-  `http.go:32` 从未 `SetTrustedProxies`，gin 默认信任 0.0.0.0/0；`ratelimiter.go:59` 按 IP 限流可伪造，`logger.go:44` 审计 IP 可污染。
-
-- **[安全] `?accessToken=` 接受 token**
-  `pkg/util/gin.go:29-31`，token 进 `logger.go:49` 的 uri 字段、代理日志、Referer。
-
-- **[安全] 分页无下限，`pageSize=0` 拖全表**
-  `pkg/util/schema.go:27-28` 只有 `max=100`；`db.go:91-96` pageSize≤0 不加 LIMIT。
-
-- **[配置] Swagger 默认开启且不经 Auth**
-  `http.go:59-62`，`config.go:24` 默认 false；`/swagger/*` 在 `/api/` 前缀之外。
-
-- **[安全] Casbin 陈旧放行与并发细节**
-  `casbin.go:70-72,112-131` 无角色或无资源时不替换旧 enforcer，撤销的权限继续生效；`:76-95` `LoadThread=0` 时策略静默为空；`:191` 与 `:218` 的 `ticker` 读写有竞态。
-
-- **[安全] 跳过列表是裸前缀匹配**
-  `pkg/middleware/middleware.go:7-20`，`middleware.toml:29` 的 `/api/v1/login` 会放行下游新增的 `/api/v1/login-history`。
-
-- **[安全] `pkg/crypto/aes` 不安全且会 panic**
-  `aes.go:12` 导出固定密钥，`:35,56` 用 key 前 16 字节当 IV，CBC 无 MAC，`:21-25` 去填充不做边界检查，`:56-58` 非块倍数密文 panic。仓库内未用，但下游会拿来用。改 AES-GCM 或删除。
-
-- **[结构] dal 绕过事务上下文**
-  `dal/user_role.dal.go:30`、`logger.dal.go:30` 用 `a.DB.Table` 而非 `util.GetDB(ctx, a.DB)`，在 `Trans.Exec` 内会跑在事务外。
-
-- **[扩展] N+1 查询**
-  `menu.biz.go:200-210` 每菜单查一次资源（`MenuResourceDAL` 已支持 `MenuIDs` 批量），`:258-271` 每项一查；`casbin.go:96-98` 每角色两条查询。
-
-- **[结构] `pkg/gormx` 细节**
-  `gorm.go:97,103` 给 replica/source 建目录误用主 DSN；`:47` MySQL 每次启动 `CREATE DATABASE` 且不可关；`:65` 非 Debug 时 gorm 错误与慢查询完全不落日志。
-
-- **[结构] 表约定**
-  `schema/user.go:21` username、`role.go:20` code、`menu.go:28` 只有普通索引无唯一约束，唯一性仅靠 biz 的 `Exists`，并发可重复；无软删除；时间戳在 biz 手工赋值（`user.biz.go:93,146`）。
-
-- **[结构] Logger 表两份定义与日志 hook 脆弱**
-  `pkg/logging/gorm.go:11-21` 与 `schema/logger.go:11-23` 描述同一张表；`gorm.go:24-27` AutoMigrate 不受配置控制且 panic；`gorm.go:50,54` 无 ok 的类型断言会让 `hook.go:80-85` 的 worker 逐个死亡，之后日志静默丢弃（`hook.go:101-104`）。
-
-- **[配置] `bootstrap/logger.go:36` 传的是 `cfg.Extra` 而非补了 appname 的 `extra`**
-  `Extra` 为空时 appname 丢失。
-
-- **[结构] Cache 层**
-  `cachex/badger.go:31` 打开失败直接 panic，三个构造函数都不返回 error，redis 不 Ping；`jwtx/store.go:28-34` 复制了一份 `Cacher` 接口，`jwtx.NewMemoryCache` 0 引用；用户缓存 TTL 不一致（`login.biz.go:86` 无过期，`:192-193` 有过期）；`redis.go:104-111` Delete 两次往返。
-
-- **[结构] 全局状态**
-  `parse.go:17-26` 单例加 `sync.Once`，`MustLoad` 第二次静默不生效；`internal/utility/prom/prom.go:10-13` 包级变量绕过 wire；`logging/init.go:152` `ReplaceGlobals`；`pkg/util/command.go:43` 库函数里 `os.Exit`（前面 `time.Sleep(100ms)`），导致 `bootstrap.go:30-34` 的 `defer Sync` 永远不执行，`SIGHUP` 被吞但不 reload；user id / trace id 在 `util/context.go:11-17` 和 `logging/logger.go:20-26` 各存一份。
-
-- **[结构] `pkg/util` 是大杂烩且不是叶子包**
-  混装 gin（gin.go）、gorm（db.go）、信号退出（command.go）、context key、ID；本身依赖 `pkg/logging`、`pkg/errors`。导出但 0 引用的 API：`util.RandomizedIPAddr`、`util.MustNewUUID`、`util.NewRowLock/FromRowLock`、`util.GetBodyData`、`util.ParseForm`、`logging.LoadConfigFromToml/PrintLogger/NewLogger`、`jwtx.NewMemoryCache/WithCacheNS`、`pkg/crypto/aes`、`pkg/crypto/rand`、`toml.Marshal`、`middleware.Trace/Logger/CopyBody/Recovery` 默认构造、`errors.Parse/Equal/NewMultiError`。建议先裁剪再对外承诺。
-
-- **[配置] 只有 dev 一套配置，Debug 默认全开**
-  `configs/` 只有 `dev/`，`cmd/start.go:34-35` 默认 `-c dev`；`server.toml:4,46,59`、`logging.toml:2`；`logging/init.go:57-58` 中 `Debug=true` 会静默覆盖 `Level`。
-
-- **[部署] HTTP server 与健康检查**
-  `http.go:73-79` 无 `ReadHeaderTimeout`、`MaxHeaderBytes`；`:33-35` `/health` 不检查 DB 和缓存，对 readiness 无意义。
-
-- **[部署] daemon/stop 模式不可靠**
-  `cmd/start.go:67,89` 锁文件与日志写 cwd 且 0666，`:86,90` 在配置加载前读 `AppName` 得空串；`stop.go:25` 直接 `kill` 不校验 pid，`:31` kill 失败也删锁。建议删除，交给 systemd 或容器。
-
-- **[工程] 版本号四处重复，构建不可复现**
-  `main.go:11`、`config.go:21`、`server.toml:3`、`internal/swagger/docs.go:2006`；`-ldflags -X main.VERSION` 不影响 `bootstrap.go:53` 的启动日志；全仓无 `-trimpath`。
-
-- **[工程] 无 Dockerfile、Makefile、CI、lint 配置**
-  无 `.github/workflows`、`.golangci.yml`、pre-commit；vet 类问题只能靠人工发现。
-
-- **[工程] `.gitignore` 缺失与残留**
-  缺 `ginadmin.log`、`dist/`（daemon 与 start.sh 产物）；`:20` `/internal/test/data`、`:27-28` 指向不存在的路径。
-
-- **[测试] 测试不 hermetic，覆盖面空白**
-  `cachex/badger_test.go:15` 写包目录且不清理，`pkg/cachex/tmp/badger/` 已累积 11 个 sst；`test/test.go:20` 包级共享 app 用 `init()` 而非 `TestMain`，Casbin autoLoad goroutine 从不 Release；`:37-38` 在裸 `gin.New()` 上注册路由绕过全部中间件；`:52` 把含密码的请求体全量打印；`internal/*` 覆盖率 0%，`pkg/middleware`、`pkg/errors`、`pkg/logging`、`pkg/gormx`、`pkg/promx`、`pkg/encoding/json` 无测试，`pkg/util` 2%。
-
-- **[部署] 日志目录 0777 且路径相对 cwd 而非 WorkDir**
-  `logging/init.go:77`、`logging.toml:8`；`Badger.Path`（`server.toml:37`、`middleware.toml:43`）、`DB.DSN`（`server.toml:49`）同理。
+**测试与工程化**
+- 没有 CI、lint 配置和 README。
+- 测试临时目录不清理：`test/e2e` 的 `os.Exit` 跳过了 defer，`test/test.go` 从不删除；`pkg/cachex/tmp/badger` 持续增长，并发运行时 badger 目录锁会 panic。
+- `test/` 旧集成测试包绕过全部中间件，已被 `test/e2e` 覆盖，建议删除。
+- `prod_test` 受开发者 shell 中已导出的 `GINADMIN_*` 变量影响。
+- 端到端测试不经过 `bootstrap.Run`，日志初始化、gorm 日志 hook、SQLite 忙等待设置没有测试覆盖。
+- swag 未在 `go.mod` 中固定版本；`.gitignore` 中 `gen_rbac_policy.csv`、`/test/data` 等条目已过时。
+- 并发攻击类缺陷依赖时序，相关测试为概率性检测。
 
 ---
 
 ## 可选
 
-- 刷新 token 不吊销旧 token，默认 24 小时有效，黑名单默认 memory 重启即失效：`login.biz.go:203-220`、`config/middleware.go:41,43`。
-- `DestroyToken` 对无 exp 的 token 空指针：`jwtx/jwt.go:156`，可加 `jwt.WithExpirationRequired()`。
-- `Auth.Disable=true` 时所有请求都是 root：`login.biz.go:34-37`，文档应标明仅限本地调试。
-- 静态目录无 index.html 时输出目录列表：`static.go:22-28`。路径穿越已被 `net/http` 的 `..` 检查挡住。
-- LIKE 通配符未转义：`user.dal.go:31,34`、`role.dal.go:34`、`menu.dal.go:35`、`logger.dal.go:38,44`。
-- `X-Request-Id` 无长度限制进日志：`trace.go:37`。Recovery 只遮 Authorization 不遮 Cookie：`recover.go:40-49`。
-- dev CORS 模板带 `AllowFiles=true`、`AllowOrigins=["*"]`：`middleware.toml:6-14`；`cors.go:42-45` 的 `DefaultCORSConfig` 无人使用。
-- 文件权限 0666/0777：`start.go:68,89`、`gorm.go:54`、`init.go:77`。
-- `parse.go:36-39` 用 `strings.Contains` 判扩展名，`.tom` 也匹配；`:65-72` 目录按字典序合并无文档；不支持 yaml 配置（`pkg/encoding/yaml` 存在但未用）。
-- Go 1.27 现代化汇总：33 处 `interface{}` 可换 `any`；7 处 `err == x` 应改 `errors.Is`（`util/db.go:108`、`cachex/badger.go:78,99`、`redis.go:87,151`、`login.biz.go:50,111`）；`cachex/badger.go:49-60` 伪造 string header 的 unsafe 写法应换 `unsafe.String/Slice`，且 Iterator 返回的 key 别名了 badger 内部缓冲；`atomic.AddInt32/LoadInt32` 可换 `atomic.Int32`；`wire.go:2`、`wire_gen.go:5` 的 `+build` 行冗余；`go.mod` 应加 `tool` 指令。
-- `ResJSON` 序列化失败直接 panic：`gin.go:74`；`:101-104` 用反射判 nil。dal 用 `nil, nil` 表示未找到，biz 每处都要判空。
-- 缓存与同步副作用写在事务闭包里，提交失败时缓存已改：`user.biz.go:171,191`、`role.biz.go:99,149,173`、`menu.biz.go:457,496`。
-- 日志 gorm hook 另开一条连接（`bootstrap/logger.go:21-30`），SQLite 下有锁冲突风险；`logging.toml:19-26` 与 `server.toml:45-59` 重复配置同一库。
-- 生成物入库但无 CI 校验同步；`go:generate` 只写在 `wire_gen.go:3` 生成文件里，swag 无 directive。
-- `scripts/*.sh` 无 shebang、不可执行、全部相对 cwd，`dist` 目录不在仓库。
-- `util/id_test.go:8-14` 零断言；`rand_test.go:23` `d > 10` 应为 `d > 9`。
-- `main.go:31-34` 参数错误 `panic` 而非退出码。
-- `go.mod` 中 `json-iterator/go` 仅为 gin 的间接依赖，非本仓库直接引用。
+- `Casbin.Disable=true` 时调用 `GetEnforcer` 会空指针，目前靠中间件 Skipper 挡住。
+- root 无法刷新 token（数据库中没有 root 用户）。
+- 改密码接口的新密码没有长度上限，超过 72 字节时 bcrypt 报错返回 500。
+- `UserStatusFreezed = "freezed"` 拼写错误且已写入数据库，越晚改成本越高。
+- `gormx` 同时链接三种数据库驱动，下游无法裁剪。
+- 日志输出到 stderr 而非注释所写的 stdout；启动时打印的多行配置会干扰按行解析的日志采集。
+- `IdleTimeout=10` 小于 nginx upstream keepalive 默认值，可能偶发 502。
+- Go 1.27 现代化：`interface{}` 换 `any`、`err ==` 换 `errors.Is`、`atomic.Int32`、`wg.Go`、`strings.SplitSeq`。
+- `pkg/` 中仍有 0 引用的导出 API（`errors.Parse`、`errors.Equal`、`toml.Marshal`、`crypto/aes` 的固定密钥）。
