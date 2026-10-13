@@ -115,7 +115,7 @@ func ResError(c *gin.Context, err error, status ...int) {
 	if e, ok := errors.As(err); ok {
 		ierr = e
 	} else {
-		ierr = errors.FromError(errors.InternalServerError("", err.Error()))
+		ierr = errors.FromError(errors.InternalServerError("", "%s", err.Error()))
 	}
 
 	code := int(ierr.Code)
