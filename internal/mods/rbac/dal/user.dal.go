@@ -28,10 +28,10 @@ func (a *User) Query(ctx context.Context, params schema.UserQueryParam, opts ...
 
 	db := GetUserDB(ctx, a.DB)
 	if v := params.LikeUsername; len(v) > 0 {
-		db = db.Where("username LIKE ?", "%"+v+"%")
+		db = db.Where(util.ContainsCondition("username", v))
 	}
 	if v := params.LikeName; len(v) > 0 {
-		db = db.Where("name LIKE ?", "%"+v+"%")
+		db = db.Where(util.ContainsCondition("name", v))
 	}
 	if v := params.Status; len(v) > 0 {
 		db = db.Where("status = ?", v)

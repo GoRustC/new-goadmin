@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -32,6 +33,19 @@ func GetDB(ctx context.Context, defDB *gorm.DB) *gorm.DB {
 		db = db.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 	return db.WithContext(ctx)
+}
+
+// likeEscaper makes LIKE wildcards in user input match literally. "!" is the
+// escape character because a backslash means different things in MySQL and
+// PostgreSQL string literals.
+var likeEscaper = strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+
+// ContainsCondition returns a WHERE condition and its argument matching rows
+// whose column contains v, ignoring case on every database (PostgreSQL's LIKE
+// is case-sensitive, MySQL's and SQLite's are not) and treating % and _ in v
+// as plain characters.
+func ContainsCondition(column, v string) (string, string) {
+	return "LOWER(" + column + ") LIKE LOWER(?) ESCAPE '!'", "%" + likeEscaper.Replace(v) + "%"
 }
 
 // TableName returns the table name gorm uses for model, including the table

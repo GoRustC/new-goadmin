@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -674,4 +675,44 @@ func TestMenuCodePathAndCycles(t *testing.T) {
 	// A legal move still works: C up to the top level.
 	expectStatus(t, "move C to the top level", call(t, http.MethodPut, "/api/v1/menus/"+cID, root, menuForm("c"+s, "")), http.StatusOK)
 	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/menus/"+cID, root, nil) })
+}
+
+// Searches behave the same on every database: case-insensitive (PostgreSQL's
+// LIKE is not), with % and _ in the input matched literally.
+func TestSearchIsPortable(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	roleID := createRole(t, root, "Srch"+s, menuID(t, "user"))
+	mixed := "MixedCase" + s
+	createUser(t, root, mixed, "Pass-1", roleID)
+	createUser(t, root, "a_b"+s, "Pass-1", roleID)
+	createUser(t, root, "axb"+s, "Pass-1", roleID)
+
+	usernames := func(query string) []string {
+		t.Helper()
+		r := call(t, http.MethodGet, "/api/v1/users?current=1&pageSize=50&username="+url.QueryEscape(query), root, nil)
+		expectStatus(t, "search "+query, r, http.StatusOK)
+		var names []string
+		for _, u := range list(t, r) {
+			names = append(names, fmt.Sprint(u["username"]))
+		}
+		return names
+	}
+
+	for _, q := range []string{strings.ToLower(mixed), strings.ToUpper(mixed), "mixedcase" + s[:6]} {
+		if got := usernames(q); !slices.Contains(got, mixed) {
+			t.Errorf("search %q should find %q regardless of case, got %v", q, mixed, got)
+		}
+	}
+	if got := usernames("a_b" + s); len(got) != 1 || got[0] != "a_b"+s {
+		t.Errorf("_ must match literally: search a_b%s got %v", s, got)
+	}
+	if got := usernames("%" + s); len(got) != 0 {
+		t.Errorf("%% must match literally: got %v", got)
+	}
+
+	roles := list(t, call(t, http.MethodGet, "/api/v1/roles?current=1&pageSize=50&name="+url.QueryEscape("ROLE SRCH"+s), root, nil))
+	if len(roles) != 1 {
+		t.Errorf("role name search should ignore case, got %d roles", len(roles))
+	}
 }

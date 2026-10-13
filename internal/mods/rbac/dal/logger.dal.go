@@ -46,13 +46,13 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 		db = db.Where("a.level = ?", v)
 	}
 	if v := params.LikeMessage; len(v) > 0 {
-		db = db.Where("a.message LIKE ?", "%"+v+"%")
+		db = db.Where(util.ContainsCondition("a.message", v))
 	}
 	if v := params.TraceID; v != "" {
 		db = db.Where("a.trace_id = ?", v)
 	}
 	if v := params.LikeUserName; v != "" {
-		db = db.Where("b.username LIKE ?", "%"+v+"%")
+		db = db.Where(util.ContainsCondition("b.username", v))
 	}
 	if v := params.Tag; v != "" {
 		db = db.Where("a.tag = ?", v)
