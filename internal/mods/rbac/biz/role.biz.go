@@ -82,7 +82,7 @@ func (a *Role) Create(ctx context.Context, formItem *schema.RoleForm) (*schema.R
 		return nil, err
 	}
 
-	err := a.Trans.Exec(ctx, func(ctx context.Context) error {
+	err := a.execAndSync(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Create(ctx, role); err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func (a *Role) Create(ctx context.Context, formItem *schema.RoleForm) (*schema.R
 				return err
 			}
 		}
-		return a.syncToCasbin(ctx)
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (a *Role) Update(ctx context.Context, id string, formItem *schema.RoleForm)
 	}
 	role.UpdatedAt = time.Now()
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	return a.execAndSync(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Update(ctx, role); err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func (a *Role) Update(ctx context.Context, id string, formItem *schema.RoleForm)
 				return err
 			}
 		}
-		return a.syncToCasbin(ctx)
+		return nil
 	})
 }
 
@@ -158,7 +158,7 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 		return errors.NotFound("", "Role not found")
 	}
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	return a.execAndSync(ctx, func(ctx context.Context) error {
 		if err := a.RoleDAL.Delete(ctx, id); err != nil {
 			return err
 		}
@@ -169,8 +169,18 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 			return err
 		}
 
-		return a.syncToCasbin(ctx)
+		return nil
 	})
+}
+
+// execAndSync runs fn in a transaction and signals casbin to reload only
+// after the commit. Signalling inside the transaction let the poller load
+// the pre-commit data and then treat the change as handled.
+func (a *Role) execAndSync(ctx context.Context, fn util.TransFunc) error {
+	if err := a.Trans.Exec(ctx, fn); err != nil {
+		return err
+	}
+	return a.syncToCasbin(ctx)
 }
 
 func (a *Role) syncToCasbin(ctx context.Context) error {

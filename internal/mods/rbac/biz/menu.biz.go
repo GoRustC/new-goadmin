@@ -416,7 +416,7 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 		return err
 	}
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	return a.execAndSync(ctx, func(ctx context.Context) error {
 		if oldStatus != formItem.Status {
 			oldPath := oldParentPath + menu.ID + util.TreePathDelimiter
 			if err := a.MenuDAL.UpdateStatusByParentPath(ctx, oldPath, formItem.Status); err != nil {
@@ -454,7 +454,7 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 			}
 		}
 
-		return a.syncToCasbin(ctx)
+		return nil
 	})
 }
 
@@ -482,7 +482,7 @@ func (a *Menu) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	return a.Trans.Exec(ctx, func(ctx context.Context) error {
+	return a.execAndSync(ctx, func(ctx context.Context) error {
 		if err := a.delete(ctx, id); err != nil {
 			return err
 		}
@@ -493,7 +493,7 @@ func (a *Menu) Delete(ctx context.Context, id string) error {
 			}
 		}
 
-		return a.syncToCasbin(ctx)
+		return nil
 	})
 }
 
@@ -508,6 +508,16 @@ func (a *Menu) delete(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+// execAndSync runs fn in a transaction and signals casbin to reload only
+// after the commit. Signalling inside the transaction let the poller load
+// the pre-commit data and then treat the change as handled.
+func (a *Menu) execAndSync(ctx context.Context, fn util.TransFunc) error {
+	if err := a.Trans.Exec(ctx, fn); err != nil {
+		return err
+	}
+	return a.syncToCasbin(ctx)
 }
 
 func (a *Menu) syncToCasbin(ctx context.Context) error {
