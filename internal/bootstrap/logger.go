@@ -27,13 +27,15 @@ func initLoggerHook(_ context.Context, cfg *logging.HookConfig) (*logging.Hook, 
 			MaxOpenConns: cast.ToInt(cfg.Options["MaxOpenConns"]),
 			MaxIdleConns: cast.ToInt(cfg.Options["MaxIdleConns"]),
 			TablePrefix:  config.C.Storage.DB.TablePrefix,
+			// Logging a failed log write would queue another write.
+			DisableSQLLog: true,
 		})
 		if err != nil {
 			return nil, err
 		}
 
 		hook := logging.NewHook(logging.NewGormHook(db),
-			logging.SetHookExtra(cfg.Extra),
+			logging.SetHookExtra(extra),
 			logging.SetHookMaxJobs(cfg.MaxBuffer),
 			logging.SetHookMaxWorkers(cfg.MaxThread))
 		return hook, nil

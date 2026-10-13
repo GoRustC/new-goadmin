@@ -37,6 +37,39 @@ type Config struct {
 	MaxIdleConns int
 	TablePrefix  string
 	Resolver     []ResolverConfig
+	// SlowThreshold logs queries slower than this as warnings; 0 uses 200ms.
+	SlowThreshold time.Duration
+	// DisableSQLLog turns off SQL logging. Set it for a connection used by a
+	// log sink, where logging a failed write would produce another write.
+	DisableSQLLog bool
+}
+
+// newSQLLogger logs every statement in debug mode and, otherwise, SQL errors
+// and slow queries as warnings through zap. Before, non-debug mode discarded
+// both, leaving nothing to investigate database problems with.
+func newSQLLogger(cfg Config) logger.Interface {
+	if cfg.DisableSQLLog {
+		return logger.Discard
+	}
+	if cfg.Debug {
+		return logger.Default
+	}
+	slow := cfg.SlowThreshold
+	if slow <= 0 {
+		slow = 200 * time.Millisecond
+	}
+	return logger.New(zapWriter{}, logger.Config{
+		SlowThreshold:             slow,
+		LogLevel:                  logger.Warn,
+		IgnoreRecordNotFoundError: true,
+		Colorful:                  false,
+	})
+}
+
+type zapWriter struct{}
+
+func (zapWriter) Printf(format string, args ...interface{}) {
+	zap.L().Warn(fmt.Sprintf(format, args...), zap.String("tag", "sql"))
 }
 
 func New(cfg Config) (*gorm.DB, error) {
@@ -62,12 +95,8 @@ func New(cfg Config) (*gorm.DB, error) {
 			TablePrefix:   cfg.TablePrefix,
 			SingularTable: true,
 		},
-		Logger:      logger.Discard,
+		Logger:      newSQLLogger(cfg),
 		PrepareStmt: cfg.PrepareStmt,
-	}
-
-	if cfg.Debug {
-		ormCfg.Logger = logger.Default
 	}
 
 	db, err := gorm.Open(dialector, ormCfg)
