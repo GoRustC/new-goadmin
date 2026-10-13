@@ -2,6 +2,7 @@ package logging
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"encoding/json"
 	"github.com/rs/xid"
@@ -46,34 +47,18 @@ func (h *GormHook) Exec(extra map[string]string, b []byte) error {
 		return err
 	}
 
-	if v, ok := data["ts"]; ok {
-		msg.CreatedAt = time.UnixMilli(int64(v.(float64)))
-		delete(data, "ts")
+	if v, ok := data["ts"].(float64); ok {
+		msg.CreatedAt = time.UnixMilli(int64(v))
 	}
-	if v, ok := data["msg"]; ok {
-		msg.Message = v.(string)
-		delete(data, "msg")
-	}
-	if v, ok := data["tag"]; ok {
-		msg.Tag = v.(string)
-		delete(data, "tag")
-	}
-	if v, ok := data["trace_id"]; ok {
-		msg.TraceID = v.(string)
-		delete(data, "trace_id")
-	}
-	if v, ok := data["user_id"]; ok {
-		msg.UserID = v.(string)
-		delete(data, "user_id")
-	}
-	if v, ok := data["level"]; ok {
-		msg.Level = v.(string)
-		delete(data, "level")
-	}
-	if v, ok := data["stack"]; ok {
-		msg.Stack = v.(string)
-		delete(data, "stack")
-	}
+	delete(data, "ts")
+	// Values are truncated to the column sizes: MySQL in strict mode and
+	// PostgreSQL reject longer values, which would drop the whole entry.
+	msg.Message = takeString(data, "msg", 1024)
+	msg.Tag = takeString(data, "tag", 32)
+	msg.TraceID = takeString(data, "trace_id", 64)
+	msg.UserID = takeString(data, "user_id", 20)
+	msg.Level = takeString(data, "level", 20)
+	msg.Stack = takeString(data, "stack", 0)
 	delete(data, "caller")
 
 	for k, v := range extra {
@@ -94,4 +79,15 @@ func (h *GormHook) Close() error {
 		return err
 	}
 	return db.Close()
+}
+
+// takeString removes key from data and returns it as a string of at most max
+// characters (0 means no limit). Non-string values become "".
+func takeString(data map[string]interface{}, key string, max int) string {
+	v, _ := data[key].(string)
+	delete(data, key)
+	if max > 0 && utf8.RuneCountInString(v) > max {
+		v = string([]rune(v)[:max])
+	}
+	return v
 }

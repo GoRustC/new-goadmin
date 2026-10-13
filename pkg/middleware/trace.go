@@ -34,8 +34,11 @@ func TraceWithConfig(config TraceConfig) gin.HandlerFunc {
 			return
 		}
 
+		// Accept a caller's request ID only if it is short and plain; otherwise
+		// generate one. An oversized ID made the database log insert fail, so
+		// a client could keep its requests out of the audit log.
 		traceID := c.GetHeader(config.RequestHeaderKey)
-		if traceID == "" {
+		if !validTraceID(traceID) {
 			traceID = fmt.Sprintf("TRACE-%s", strings.ToUpper(xid.New().String()))
 		}
 
@@ -45,4 +48,21 @@ func TraceWithConfig(config TraceConfig) gin.HandlerFunc {
 		c.Writer.Header().Set(config.ResponseTraceKey, traceID)
 		c.Next()
 	}
+}
+
+// maxTraceIDLen matches the trace_id column of the logger table.
+const maxTraceIDLen = 64
+
+func validTraceID(id string) bool {
+	if id == "" || len(id) > maxTraceIDLen {
+		return false
+	}
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+		default:
+			return false
+		}
+	}
+	return true
 }
