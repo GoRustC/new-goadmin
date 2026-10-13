@@ -117,11 +117,15 @@ func (a *Casbinx) load(ctx context.Context) error {
 		}()
 	}
 
+	var loadErr error
 	for _, item := range roleResult.Data {
 		resources, err := a.queryRoleResources(ctx, item.ID)
 		if err != nil {
-			logging.Context(ctx).Error("Failed to query role resources", zap.Error(err))
-			continue
+			// Abort the whole load: installing a partial policy would deny the
+			// role's users until the next change. Keep the current enforcer and
+			// let the next tick retry.
+			loadErr = fmt.Errorf("query resources of role %s: %w", item.ID, err)
+			break
 		}
 		atomic.AddInt32(&resCount, int32(len(resources)))
 		queue <- &policyQueueItem{
@@ -131,6 +135,9 @@ func (a *Casbinx) load(ctx context.Context) error {
 	}
 	close(queue)
 	wg.Wait()
+	if loadErr != nil {
+		return loadErr
+	}
 
 	// Always swap in a fresh enforcer, even with no policies: keeping the old
 	// one would continue to allow permissions that were just revoked.
