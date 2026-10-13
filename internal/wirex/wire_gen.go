@@ -83,6 +83,7 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 		Trans:       trans,
 		UserDAL:     user,
 		UserRoleDAL: userRole,
+		RoleMenuDAL: roleMenu,
 	}
 	apiUser := &api.User{
 		UserBIZ: bizUser,

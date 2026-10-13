@@ -20,6 +20,11 @@ type User struct {
 	Trans       *util.Trans
 	UserDAL     *dal.User
 	UserRoleDAL *dal.UserRole
+	RoleMenuDAL *dal.RoleMenu
+}
+
+func (a *User) guard() privilegeGuard {
+	return privilegeGuard{userRoles: a.UserRoleDAL, roleMenus: a.RoleMenuDAL}
 }
 
 // Query users from the data access object based on the provided parameters and options.
@@ -82,6 +87,10 @@ func (a *User) Get(ctx context.Context, id string) (*schema.User, error) {
 
 // Create a new user in the data access object.
 func (a *User) Create(ctx context.Context, formItem *schema.UserForm) (*schema.User, error) {
+	if err := a.guard().checkAssignRoles(ctx, roleIDsOf(formItem.Roles)); err != nil {
+		return nil, err
+	}
+
 	existsUsername, err := a.UserDAL.ExistsUsername(ctx, formItem.Username)
 	if err != nil {
 		return nil, err
@@ -135,7 +144,14 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 		return err
 	} else if user == nil {
 		return errors.NotFound("", "User not found")
-	} else if user.Username != formItem.Username {
+	}
+	if err := a.guard().checkManageUser(ctx, id); err != nil {
+		return err
+	}
+	if err := a.guard().checkAssignRoles(ctx, roleIDsOf(formItem.Roles)); err != nil {
+		return err
+	}
+	if user.Username != formItem.Username {
 		existsUsername, err := a.UserDAL.ExistsUsername(ctx, formItem.Username)
 		if err != nil {
 			return err
@@ -187,6 +203,9 @@ func (a *User) Delete(ctx context.Context, id string) error {
 	} else if !exists {
 		return errors.NotFound("", "User not found")
 	}
+	if err := a.guard().checkManageUser(ctx, id); err != nil {
+		return err
+	}
 
 	err = a.Trans.Exec(ctx, func(ctx context.Context) error {
 		if err := a.UserDAL.Delete(ctx, id); err != nil {
@@ -209,6 +228,9 @@ func (a *User) ResetPassword(ctx context.Context, id string) error {
 		return err
 	} else if !exists {
 		return errors.NotFound("", "User not found")
+	}
+	if err := a.guard().checkManageUser(ctx, id); err != nil {
+		return err
 	}
 
 	if a.Config.General.DefaultLoginPwd == "" {

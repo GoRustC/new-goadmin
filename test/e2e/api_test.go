@@ -400,3 +400,96 @@ func TestConcurrentCaptchaVerification(t *testing.T) {
 	}
 	mustLogin(t, "admin", rootPassword)
 }
+
+// childMenuID finds a button such as "add" under a page such as "user"; button
+// codes repeat across pages.
+func childMenuID(t *testing.T, parentCode, code string) string {
+	t.Helper()
+	parent := menuID(t, parentCode)
+	var m schema.Menu
+	if err := injector.DB.Where("code = ? AND parent_id = ?", code, parent).First(&m).Error; err != nil {
+		t.Fatalf("find menu %s.%s: %v", parentCode, code, err)
+	}
+	return m.ID
+}
+
+func roleForm(code string, menuIDs ...string) map[string]any {
+	menus := []map[string]string{}
+	for _, id := range menuIDs {
+		menus = append(menus, map[string]string{"menu_id": id})
+	}
+	return map[string]any{"code": code, "name": "role " + code, "status": "enabled", "menus": menus}
+}
+
+// A user or role administrator must not be able to grant, or take over,
+// privileges they do not hold. Before the guard, editing users or roles was
+// equivalent to root.
+func TestPrivilegeCeiling(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+
+	userPage, rolePage, loggerPage := menuID(t, "user"), menuID(t, "role"), menuID(t, "logger")
+	adminMenus := []string{
+		userPage, childMenuID(t, "user", "add"), childMenuID(t, "user", "edit"), childMenuID(t, "user", "delete"),
+		rolePage, childMenuID(t, "role", "add"), childMenuID(t, "role", "edit"), childMenuID(t, "role", "delete"),
+	}
+	adminRole := createRole(t, root, "adm"+s, adminMenus...)
+	lowRole := createRole(t, root, "low"+s, userPage)
+	highRole := createRole(t, root, "high"+s, userPage, loggerPage)
+
+	adminID := createUser(t, root, "adm"+s, "Pass-1", adminRole)
+	lowID := createUser(t, root, "low"+s, "Pass-1", lowRole)
+	highID := createUser(t, root, "high"+s, "Pass-1", highRole)
+
+	admin := mustLogin(t, "adm"+s, "Pass-1")
+	eventually(t, "admin can manage users", http.MethodGet, "/api/v1/users", admin, http.StatusOK)
+	eventually(t, "admin can manage roles", http.MethodGet, "/api/v1/roles", admin, http.StatusOK)
+
+	denied := func(what string, r response) {
+		t.Helper()
+		expectStatus(t, what, r, http.StatusForbidden)
+		if r.Error == nil || r.Error.ID != "com.rbac.privilege-escalation" {
+			t.Fatalf("%s: expected a privilege escalation error, got %+v", what, r.Error)
+		}
+	}
+
+	// Users.
+	denied("create user with a more privileged role",
+		call(t, http.MethodPost, "/api/v1/users", admin, userForm("x1"+s, "Pass-1", "activated", highRole)))
+	created := call(t, http.MethodPost, "/api/v1/users", admin, userForm("x2"+s, "Pass-1", "activated", lowRole))
+	expectStatus(t, "create user with a lesser role", created, http.StatusOK)
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/users/"+dataField(t, created, "id"), root, nil) })
+
+	denied("take over a more privileged user by setting its password",
+		call(t, http.MethodPut, "/api/v1/users/"+highID, admin, userForm("high"+s, "Hijacked-1", "activated", highRole)))
+	// menu.json grants the reset-pwd API to no menu, so casbin already denies
+	// it to every non-root user before the guard runs.
+	expectStatus(t, "reset a more privileged user's password",
+		call(t, http.MethodPatch, "/api/v1/users/"+highID+"/reset-pwd", admin, nil), http.StatusForbidden)
+	denied("delete a more privileged user", call(t, http.MethodDelete, "/api/v1/users/"+highID, admin, nil))
+	denied("give a lesser user a more privileged role",
+		call(t, http.MethodPut, "/api/v1/users/"+lowID, admin, userForm("low"+s, "", "activated", lowRole, highRole)))
+	denied("change own account through user management",
+		call(t, http.MethodPut, "/api/v1/users/"+adminID, admin, userForm("adm"+s, "", "activated", adminRole, highRole)))
+	expectStatus(t, "manage a lesser user", call(t, http.MethodPut, "/api/v1/users/"+lowID, admin,
+		userForm("low"+s, "", "freezed", lowRole)), http.StatusOK)
+
+	// The victim's password was not changed.
+	mustLogin(t, "high"+s, "Pass-1")
+
+	// Roles.
+	denied("create a role with menus the admin lacks",
+		call(t, http.MethodPost, "/api/v1/roles", admin, roleForm("x3"+s, userPage, loggerPage)))
+	lesser := call(t, http.MethodPost, "/api/v1/roles", admin, roleForm("x4"+s, userPage))
+	expectStatus(t, "create a role with menus the admin holds", lesser, http.StatusOK)
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/roles/"+dataField(t, lesser, "id"), root, nil) })
+
+	denied("add a missing menu to the admin's own role",
+		call(t, http.MethodPut, "/api/v1/roles/"+adminRole, admin, roleForm("adm"+s, append(adminMenus, loggerPage)...)))
+	denied("change a more privileged role",
+		call(t, http.MethodPut, "/api/v1/roles/"+highRole, admin, roleForm("high"+s, userPage)))
+	denied("delete a more privileged role", call(t, http.MethodDelete, "/api/v1/roles/"+highRole, admin, nil))
+
+	// The admin still cannot read logs: nothing above granted it.
+	expectStatus(t, "admin still lacks loggers", call(t, http.MethodGet, "/api/v1/loggers", admin, nil), http.StatusForbidden)
+}

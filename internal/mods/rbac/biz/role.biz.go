@@ -67,7 +67,14 @@ func (a *Role) Get(ctx context.Context, id string) (*schema.Role, error) {
 }
 
 // Create a new role in the data access object.
+func (a *Role) guard() privilegeGuard {
+	return privilegeGuard{userRoles: a.UserRoleDAL, roleMenus: a.RoleMenuDAL}
+}
+
 func (a *Role) Create(ctx context.Context, formItem *schema.RoleForm) (*schema.Role, error) {
+	if err := a.guard().checkRoleMenus(ctx, "", menuIDsOf(formItem.Menus)); err != nil {
+		return nil, err
+	}
 	if exists, err := a.RoleDAL.ExistsCode(ctx, formItem.Code); err != nil {
 		return nil, err
 	} else if exists {
@@ -112,7 +119,11 @@ func (a *Role) Update(ctx context.Context, id string, formItem *schema.RoleForm)
 		return err
 	} else if role == nil {
 		return errors.NotFound("", "Role not found")
-	} else if role.Code != formItem.Code {
+	}
+	if err := a.guard().checkRoleMenus(ctx, id, menuIDsOf(formItem.Menus)); err != nil {
+		return err
+	}
+	if role.Code != formItem.Code {
 		if exists, err := a.RoleDAL.ExistsCode(ctx, formItem.Code); err != nil {
 			return err
 		} else if exists {
@@ -156,6 +167,9 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 		return err
 	} else if !exists {
 		return errors.NotFound("", "Role not found")
+	}
+	if err := a.guard().checkRoleMenus(ctx, id, nil); err != nil {
+		return err
 	}
 
 	return a.execAndSync(ctx, func(ctx context.Context) error {
