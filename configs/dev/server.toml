@@ -19,6 +19,9 @@ WriteTimeout = 60
 IdleTimeout = 10
 CertFile = ""
 KeyFile = ""
+# Reverse proxies allowed to set X-Forwarded-For, e.g. ["127.0.0.1", "10.0.0.0/8"].
+# Empty trusts none: the client IP is the TCP peer address.
+TrustedProxies = []
 
 [General.Root] # Super Administrator Account
 ID = "root"

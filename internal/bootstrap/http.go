@@ -29,6 +29,11 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 	}
 
 	e := gin.New()
+	// gin trusts X-Forwarded-For from every address by default, which lets
+	// clients spoof their IP and bypass per-IP rate limiting.
+	if err := e.SetTrustedProxies(config.C.General.HTTP.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("invalid General.HTTP.TrustedProxies: %w", err)
+	}
 	e.GET("/health", func(c *gin.Context) {
 		util.ResOK(c)
 	})

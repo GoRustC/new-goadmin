@@ -36,6 +36,9 @@ type General struct {
 		IdleTimeout     int    `default:"10"` // seconds
 		CertFile        string
 		KeyFile         string
+		// Proxies (IPs or CIDRs) allowed to set X-Forwarded-For / X-Real-IP.
+		// Empty trusts none, so the client IP is always the TCP peer address.
+		TrustedProxies []string
 	}
 	Root struct {
 		ID       string `default:"root"`
