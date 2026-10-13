@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -608,4 +609,69 @@ func jwtAuthTime(t *testing.T, token string) float64 {
 		t.Fatal(err)
 	}
 	return claims.AuthTime
+}
+
+// withMenuWrites lifts the production sample's DenyOperateMenu for one test.
+func withMenuWrites(t *testing.T) {
+	t.Helper()
+	orig := config.C.General.DenyOperateMenu
+	config.C.General.DenyOperateMenu = false
+	t.Cleanup(func() { config.C.General.DenyOperateMenu = orig })
+}
+
+func menuForm(code, parentID string) map[string]any {
+	return map[string]any{"code": code, "name": "menu " + code, "type": "page", "status": "enabled", "parent_id": parentID}
+}
+
+func TestMenuCodePathAndCycles(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+
+	// ?code=system.user must resolve "user" under "system"; it used to look
+	// for "user" at the top level and answer 404.
+	r := call(t, http.MethodGet, "/api/v1/menus?code=system.user", root, nil)
+	expectStatus(t, "query by code path", r, http.StatusOK)
+	// The result is a tree rooted at the matched menus' ancestors.
+	var codes []string
+	var walk func(items []any, path string)
+	walk = func(items []any, path string) {
+		for _, it := range items {
+			m := it.(map[string]any)
+			p := path + "/" + fmt.Sprint(m["code"])
+			codes = append(codes, p)
+			if c, ok := m["children"].([]any); ok {
+				walk(c, p)
+			}
+		}
+	}
+	var tree []any
+	_ = json.Unmarshal(r.Data, &tree)
+	walk(tree, "")
+	if !slices.Contains(codes, "/system/user/add") {
+		t.Fatalf("system.user should return the user page's buttons, got %v", codes)
+	}
+	if slices.Contains(codes, "/system/role/add") {
+		t.Fatalf("system.user must not return other pages' buttons, got %v", codes)
+	}
+	expectStatus(t, "unknown code path", call(t, http.MethodGet, "/api/v1/menus?code=system.nope", root, nil), http.StatusNotFound)
+
+	withMenuWrites(t)
+	s := unique()
+	a := call(t, http.MethodPost, "/api/v1/menus", root, menuForm("a"+s, ""))
+	expectStatus(t, "create menu A", a, http.StatusOK)
+	aID := dataField(t, a, "id")
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/menus/"+aID, root, nil) })
+	b := call(t, http.MethodPost, "/api/v1/menus", root, menuForm("b"+s, aID))
+	expectStatus(t, "create menu B under A", b, http.StatusOK)
+	bID := dataField(t, b, "id")
+	c := call(t, http.MethodPost, "/api/v1/menus", root, menuForm("c"+s, bID))
+	expectStatus(t, "create menu C under B", c, http.StatusOK)
+	cID := dataField(t, c, "id")
+
+	expectStatus(t, "A under itself", call(t, http.MethodPut, "/api/v1/menus/"+aID, root, menuForm("a"+s, aID)), http.StatusBadRequest)
+	expectStatus(t, "A under its child", call(t, http.MethodPut, "/api/v1/menus/"+aID, root, menuForm("a"+s, bID)), http.StatusBadRequest)
+	expectStatus(t, "A under its grandchild", call(t, http.MethodPut, "/api/v1/menus/"+aID, root, menuForm("a"+s, cID)), http.StatusBadRequest)
+
+	// A legal move still works: C up to the top level.
+	expectStatus(t, "move C to the top level", call(t, http.MethodPut, "/api/v1/menus/"+cID, root, menuForm("c"+s, "")), http.StatusOK)
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/menus/"+cID, root, nil) })
 }

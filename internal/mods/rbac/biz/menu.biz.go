@@ -224,7 +224,9 @@ func (a *Menu) fillQueryParam(ctx context.Context, params *schema.MenuQueryParam
 				continue
 			}
 			codes = append(codes, code)
-			menu, err := a.MenuDAL.GetByCodeAndParentID(ctx, code, lastMenu.ParentID, schema.MenuQueryOptions{
+			// Each code is looked up under the menu matched by the previous
+			// one; the first under the root, where lastMenu.ID is empty.
+			menu, err := a.MenuDAL.GetByCodeAndParentID(ctx, code, lastMenu.ID, schema.MenuQueryOptions{
 				QueryOptions: util.QueryOptions{
 					SelectFields: []string{"id", "parent_id", "parent_path"},
 				},
@@ -380,11 +382,18 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 	var childData schema.Menus
 	if menu.ParentID != formItem.ParentID {
 		if parentID := formItem.ParentID; parentID != "" {
+			if parentID == menu.ID {
+				return errors.BadRequest("", "A menu cannot be its own parent")
+			}
 			parent, err := a.MenuDAL.Get(ctx, parentID)
 			if err != nil {
 				return err
 			} else if parent == nil {
 				return errors.NotFound("", "Parent not found")
+			}
+			// Moving a menu under one of its descendants would make a cycle.
+			if strings.HasPrefix(parent.ParentPath, oldParentPath+menu.ID+util.TreePathDelimiter) {
+				return errors.BadRequest("", "A menu cannot be moved under its own descendant")
 			}
 			menu.ParentPath = parent.ParentPath + parent.ID + util.TreePathDelimiter
 		} else {
