@@ -109,18 +109,23 @@ func (a *Login) ResponseCaptcha(ctx context.Context, w http.ResponseWriter, id s
 		return errors.NotFound("", "Captcha id not found")
 	}
 
+	// Headers must be set before the image is written; once the body starts,
+	// later header changes are ignored.
+	h := w.Header()
+	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	h.Set("Pragma", "no-cache")
+	h.Set("Expires", "0")
+	h.Set("Content-Type", "image/png")
+
 	err := captcha.WriteImage(w, id, a.Config.Util.Captcha.Width, a.Config.Util.Captcha.Height)
 	if err != nil {
+		// Nothing was written yet; let the JSON error set its own content type.
+		h.Del("Content-Type")
 		if err == captcha.ErrNotFound {
 			return errors.NotFound("", "Captcha id not found")
 		}
 		return err
 	}
-
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
-	w.Header().Set("Content-Type", "image/png")
 	return nil
 }
 
