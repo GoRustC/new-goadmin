@@ -18,8 +18,8 @@ func TestTableNameAppliesPrefix(t *testing.T) {
 		prefix string
 		want   string
 	}{
-		{prefix: "", want: "user_role"},
-		{prefix: "app_", want: "app_user_role"},
+		{prefix: "", want: "`user_role`"},
+		{prefix: "app_", want: "`app_user_role`"},
 	}
 	for _, tt := range tests {
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
