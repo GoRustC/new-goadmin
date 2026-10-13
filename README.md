@@ -2,7 +2,49 @@
 
 基于 Gin、GORM、Casbin 和 Wire 的 RBAC 后台管理服务端，作为多个项目的通用底座。提供登录与验证码、用户、角色、菜单与接口权限、操作日志等功能。
 
-审计与修复记录见 [AUDIT.md](AUDIT.md)。
+## 来源与许可
+
+本项目基于 [LyricTian/gin-admin](https://github.com/LyricTian/gin-admin) v10（Copyright 2023 LyricTian）二次开发，沿用其 [Apache License 2.0](LICENSE)。感谢原作者的工作。
+
+相对上游的改动概要见下一节，每项改动的原因与验证方式见 [AUDIT.md](AUDIT.md) 和 git 提交记录（基线提交为 `5ce7269`）。
+
+## 相对上游的改动
+
+**依赖与构建**
+- 要求 Go 1.27.2；依赖升级到当时的最新次版本，badger 升至 v4、golang-jwt 升至 v5；SQLite 驱动改为纯 Go 实现，不再需要 cgo。
+- 用标准库替换 `pkg/errors` 和 json-iterator；Redis 客户端统一为 go-redis v9；wire 版本由 `go.mod` 固定。
+- 移除 Prometheus 集成，以及未使用的 oss、mail 包。
+
+**安全**
+- 去掉内置的 JWT 密钥和默认口令；生产模式下拒绝已公开的默认值。
+- 登录连续失败锁定账号名；错误提示与响应时间不暴露账号是否存在。
+- 改密码、管理员设置或重置密码后吊销该用户的旧 token；刷新 token 时作废旧 token。
+- 非 root 管理员只能授予、管理不超过自身权限范围的角色和用户。
+- 被冻结、删除或撤权的用户不再能通过缓存继续访问。
+- 替换验证码库自带的内存存储，修复未登录即可让所有人无法登录的死锁；验证码可存入 Redis。
+- 日志不再记录请求体、响应体和 token；打印配置时遮蔽密码与密钥。
+- gzip 请求解压后同样受大小限制；默认不信任代理转发的客户端 IP；pprof 改用独立路由；Swagger 默认关闭。
+- 安全响应头、请求头超时；更新到无已知可达漏洞的依赖版本。
+
+**权限与数据**
+- Casbin 策略改为在内存中加载，不再写文件；撤权立即生效，同一秒内的多次变更不再丢失，加载失败时保留原策略。
+- 修复所有非 root 用户被拒绝的策略格式问题、PostgreSQL 下日志查询报错、关闭日志 hook 后日志页面报错。
+- 分页参数增加下限，`pageSize=0` 不再返回整张表；日志表支持按天数自动清理。
+
+**配置与运维**
+- 新增生产配置样例 `configs/prod`；配置值可引用环境变量（`${NAME}`），启动时校验配置并一次列出所有问题。
+- 端口占用、证书错误时启动失败而非进程假活；MySQL 建库保留原连接串参数（支持 unix socket、TLS）。
+- 新增就绪检查 `/health/ready`；记录 SQL 错误与慢查询；日志 caller 位置修正；日志 hook 停机安全。
+- 新增 systemd 服务、环境变量模板与 nginx 示例。
+
+**测试与工程化**
+- 新增覆盖全部接口的端到端测试，可针对 SQLite、MySQL、PostgreSQL 运行；新增 GitHub Actions CI。
+
+**行为变化（升级时注意）**
+- 刷新 token 后旧 token 立即失效；改密码后当前会话也需重新登录。
+- 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
+- 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
+- 配置项变化：新增 `TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
 ## 环境要求
 
