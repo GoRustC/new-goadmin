@@ -45,6 +45,7 @@
 - 会话自密码登录起最长 7 天（`Middleware.Auth.MaxSessionHours`），之后刷新返回 401（`com.session.expired`），需重新登录。
 - 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
+- 只有 root 能重置他人密码或在编辑用户时设置新密码，其他管理员返回 403（`com.rbac.root-only`）。
 - 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
 - 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
@@ -136,12 +137,12 @@ sudo systemctl enable --now ginadmin
 | `/health` | 存活检查：进程正常即返回 200 |
 | `/health/ready` | 就绪检查：数据库和 Redis 均可用时返回 200，否则 503；负载均衡应使用这个 |
 
-### 容量与多实例
+### 部署模型与容量
 
-- 每个实例占用的数据库连接数为 `Storage.DB.MaxOpenConns` 加日志 hook 的 `MaxOpenConns`（样例为 25 + 4）。所有实例合计要小于数据库的 `max_connections`（MySQL 默认 151，PostgreSQL 默认 100）。
-- 多实例部署需要所有实例共用同一个 Redis：权限变更、登出、验证码和限流都依赖它。生产样例已全部使用 Redis。
+- 按每台服务器一个实例设计和测试，不需要也不支持同时启动多个实例初始化同一个数据库。
+- 即使只有一个实例，也应使用 Redis：登出黑名单、改密码后的 token 吊销、登录失败计数和验证码都存在缓存中，Redis 在重启后保留它们；改用内存缓存则重启后已吊销的 token 会重新有效。
+- 一个实例占用的数据库连接数为 `Storage.DB.MaxOpenConns` 加日志 hook 的 `MaxOpenConns`（样例为 25 + 4），要小于数据库的 `max_connections`（MySQL 默认 151，PostgreSQL 默认 100）。
 - 多个应用或环境共用一个 Redis 库时，为每个设置不同的 `Storage.Cache.KeyPrefix`，避免键冲突。
-- 首次部署请先启动一个实例完成建表和菜单导入，再启动其余实例，避免并发初始化。
 
 ## 安全机制
 
@@ -151,7 +152,7 @@ sudo systemctl enable --now ginadmin
 - **root 账号**：来自配置而非数据库，不受权限控制。生产环境应使用强密码，必要时把 `GINADMIN_ROOT_PASSWORD` 设为空以禁用。
 - **其他**：限流（按 IP 与按用户）、请求体与 gzip 解压大小限制、安全响应头、日志中的密码与 token 脱敏、操作日志保留 90 天。
 
-已知限制：`configs/menu.json` 中没有任何菜单包含重置密码接口，目前只有 root 可以重置他人密码。如需开放，在对应菜单的 `resources` 中加入 `PATCH /api/v1/users/{id}/reset-pwd`。
+- **修改他人密码**：只有 root 可以重置密码或在编辑用户时设置新密码，由代码保证，与 `menu.json` 的配置无关（返回 403 `com.rbac.root-only`）。其他管理员创建用户时仍可设置初始密码；用户可以修改自己的密码。
 
 ## 测试
 
