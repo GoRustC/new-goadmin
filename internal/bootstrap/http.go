@@ -22,6 +22,50 @@ import (
 )
 
 func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), error) {
+	e, err := NewHTTPHandler(ctx, injector)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := config.C.General.HTTP.Addr
+	logging.Context(ctx).Info(fmt.Sprintf("HTTP server is listening on %s", addr))
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      e,
+		ReadTimeout:  time.Second * time.Duration(config.C.General.HTTP.ReadTimeout),
+		WriteTimeout: time.Second * time.Duration(config.C.General.HTTP.WriteTimeout),
+		IdleTimeout:  time.Second * time.Duration(config.C.General.HTTP.IdleTimeout),
+	}
+
+	go func() {
+		var err error
+		if config.C.General.HTTP.CertFile != "" && config.C.General.HTTP.KeyFile != "" {
+			srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+			err = srv.ListenAndServeTLS(config.C.General.HTTP.CertFile, config.C.General.HTTP.KeyFile)
+		} else {
+			err = srv.ListenAndServe()
+		}
+
+		if err != nil && err != http.ErrServerClosed {
+			logging.Context(ctx).Error("Failed to listen http server", zap.Error(err))
+		}
+	}()
+
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(config.C.General.HTTP.ShutdownTimeout))
+		defer cancel()
+
+		srv.SetKeepAlivesEnabled(false)
+		if err := srv.Shutdown(ctx); err != nil {
+			logging.Context(ctx).Error("Failed to shutdown http server", zap.Error(err))
+		}
+	}, nil
+}
+
+// NewHTTPHandler builds the gin engine with every middleware and route the
+// server uses, without listening on a port. Tests use it to exercise the
+// real request pipeline.
+func NewHTTPHandler(ctx context.Context, injector *wirex.Injector) (*gin.Engine, error) {
 	if config.C.IsDebug() {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -72,39 +116,7 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 		}))
 	}
 
-	addr := config.C.General.HTTP.Addr
-	logging.Context(ctx).Info(fmt.Sprintf("HTTP server is listening on %s", addr))
-	srv := &http.Server{
-		Addr:         addr,
-		Handler:      e,
-		ReadTimeout:  time.Second * time.Duration(config.C.General.HTTP.ReadTimeout),
-		WriteTimeout: time.Second * time.Duration(config.C.General.HTTP.WriteTimeout),
-		IdleTimeout:  time.Second * time.Duration(config.C.General.HTTP.IdleTimeout),
-	}
-
-	go func() {
-		var err error
-		if config.C.General.HTTP.CertFile != "" && config.C.General.HTTP.KeyFile != "" {
-			srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-			err = srv.ListenAndServeTLS(config.C.General.HTTP.CertFile, config.C.General.HTTP.KeyFile)
-		} else {
-			err = srv.ListenAndServe()
-		}
-
-		if err != nil && err != http.ErrServerClosed {
-			logging.Context(ctx).Error("Failed to listen http server", zap.Error(err))
-		}
-	}()
-
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(config.C.General.HTTP.ShutdownTimeout))
-		defer cancel()
-
-		srv.SetKeepAlivesEnabled(false)
-		if err := srv.Shutdown(ctx); err != nil {
-			logging.Context(ctx).Error("Failed to shutdown http server", zap.Error(err))
-		}
-	}, nil
+	return e, nil
 }
 
 func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Injector, allowedPrefixes []string) error {
