@@ -22,7 +22,7 @@ type General struct {
 	Version            string `default:"v10.1.0"`
 	Debug              bool
 	PprofAddr          string
-	DisableSwagger     bool
+	DisableSwagger     bool `default:"true"`
 	DisablePrintConfig bool
 	DefaultLoginPwd    string // Password (MD5 hash, as sent by the frontend) for new users without one and for resets; empty disables both
 	WorkDir            string // From command arguments
