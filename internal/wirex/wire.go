@@ -16,6 +16,7 @@ import (
 
 func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 	wire.Build(
+		ProvideConfig,
 		InitCacher,
 		InitDB,
 		InitAuth,

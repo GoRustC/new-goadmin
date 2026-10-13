@@ -18,6 +18,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// ProvideConfig hands the loaded configuration to the dependency graph, so
+// modules receive it as a field instead of reading the config.C global.
+func ProvideConfig() *config.Config {
+	return config.C
+}
+
 const minSigningKeyLen = 32
 
 // Keys that were shipped in earlier versions of this project. They are public,

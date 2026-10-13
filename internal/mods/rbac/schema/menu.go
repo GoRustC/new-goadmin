@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
 	"github.com/LyricTian/gin-admin/v10/pkg/errors"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 )
@@ -39,10 +38,6 @@ type Menu struct {
 	CreatedAt   time.Time     `json:"created_at" gorm:"index;"`           // Create time
 	UpdatedAt   time.Time     `json:"updated_at" gorm:"index;"`           // Update time
 	Resources   MenuResources `json:"resources" gorm:"-"`                 // Resources of menu
-}
-
-func (a *Menu) TableName() string {
-	return config.C.FormatTableName("menu")
 }
 
 // Defining the query parameters for the `Menu` struct.

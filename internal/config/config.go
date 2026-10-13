@@ -210,7 +210,3 @@ func (c *Config) Print() {
 	fmt.Println(c.String())
 	fmt.Println("// ----------------------- Load configurations end --------------------------")
 }
-
-func (c *Config) FormatTableName(name string) string {
-	return c.Storage.DB.TablePrefix + name
-}

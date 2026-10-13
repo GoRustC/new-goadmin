@@ -3,7 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 )
 
@@ -20,10 +19,6 @@ type Logger struct {
 	CreatedAt time.Time `gorm:"index;" json:"created_at"`                // Create time
 	LoginName string    `json:"login_name" gorm:"<-:false;-:migration;"` // From User.Username
 	UserName  string    `json:"user_name" gorm:"<-:false;-:migration;"`  // From User.Name
-}
-
-func (a *Logger) TableName() string {
-	return config.C.FormatTableName("logger")
 }
 
 // Defining the query parameters for the `Logger` struct.

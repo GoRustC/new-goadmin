@@ -14,6 +14,7 @@ import (
 )
 
 type RBAC struct {
+	Config    *config.Config
 	DB        *gorm.DB
 	MenuAPI   *api.Menu
 	RoleAPI   *api.Role
@@ -35,7 +36,7 @@ func (a *RBAC) AutoMigrate(ctx context.Context) error {
 }
 
 func (a *RBAC) Init(ctx context.Context) error {
-	if config.C.Storage.DB.AutoMigrate {
+	if a.Config.Storage.DB.AutoMigrate {
 		if err := a.AutoMigrate(ctx); err != nil {
 			return err
 		}
@@ -45,8 +46,8 @@ func (a *RBAC) Init(ctx context.Context) error {
 		return err
 	}
 
-	if name := config.C.General.MenuFile; name != "" {
-		fullPath := filepath.Join(config.C.General.WorkDir, name)
+	if name := a.Config.General.MenuFile; name != "" {
+		fullPath := filepath.Join(a.Config.General.WorkDir, name)
 		if err := a.MenuAPI.MenuBIZ.InitFromFile(ctx, fullPath); err != nil {
 			logging.Context(ctx).Error("failed to init menu data", zap.Error(err), zap.String("file", fullPath))
 		}

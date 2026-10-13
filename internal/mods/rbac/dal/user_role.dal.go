@@ -27,9 +27,19 @@ func (a *UserRole) Query(ctx context.Context, params schema.UserRoleQueryParam, 
 		opt = opts[0]
 	}
 
-	db := a.DB.Table(fmt.Sprintf("%s AS a", new(schema.UserRole).TableName()))
+	userRoleTable, err := util.TableName(a.DB, new(schema.UserRole))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	roleTable, err := util.TableName(a.DB, new(schema.Role))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// util.GetDB keeps the query inside the caller's transaction, if any.
+	db := util.GetDB(ctx, a.DB).Table(fmt.Sprintf("%s AS a", userRoleTable))
 	if opt.JoinRole {
-		db = db.Joins(fmt.Sprintf("left join %s b on a.role_id=b.id", new(schema.Role).TableName()))
+		db = db.Joins(fmt.Sprintf("left join %s b on a.role_id=b.id", roleTable))
 		db = db.Select("a.*,b.name as role_name")
 	}
 

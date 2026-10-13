@@ -27,8 +27,18 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 		opt = opts[0]
 	}
 
-	db := a.DB.Table(fmt.Sprintf("%s AS a", new(schema.Logger).TableName()))
-	db = db.Joins(fmt.Sprintf("left join %s b on a.user_id=b.id", new(schema.User).TableName()))
+	loggerTable, err := util.TableName(a.DB, new(schema.Logger))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	userTable, err := util.TableName(a.DB, new(schema.User))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// util.GetDB keeps the query inside the caller's transaction, if any.
+	db := util.GetDB(ctx, a.DB).Table(fmt.Sprintf("%s AS a", loggerTable))
+	db = db.Joins(fmt.Sprintf("left join %s b on a.user_id=b.id", userTable))
 	db = db.Select("a.*,b.name as user_name,b.username as login_name")
 
 	if v := params.Level; v != "" {

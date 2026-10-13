@@ -25,6 +25,7 @@ import (
 
 // Load rbac permissions to casbin
 type Casbinx struct {
+	Config          *config.Config
 	enforcer        *atomic.Value `wire:"-"`
 	ticker          *time.Ticker  `wire:"-"`
 	Cache           cachex.Cacher
@@ -46,11 +47,11 @@ type policyQueueItem struct {
 }
 
 func (a *Casbinx) Load(ctx context.Context) error {
-	if config.C.Middleware.Casbin.Disable {
+	if a.Config.Middleware.Casbin.Disable {
 		return nil
 	}
 
-	if config.C.Storage.Cache.Type == "memory" && !config.C.IsDebug() {
+	if a.Config.Storage.Cache.Type == "memory" && !a.Config.IsDebug() {
 		logging.Context(ctx).Warn("Casbin policy reloads are signalled through Storage.Cache; " +
 			"with the memory cache, other instances never see role or menu changes. " +
 			"Use the redis cache when running more than one instance.")
@@ -62,7 +63,7 @@ func (a *Casbinx) Load(ctx context.Context) error {
 	}
 
 	// Create the ticker before starting the goroutine so Release never races with it.
-	a.ticker = time.NewTicker(time.Duration(config.C.Middleware.Casbin.AutoLoadInterval) * time.Second)
+	a.ticker = time.NewTicker(time.Duration(a.Config.Middleware.Casbin.AutoLoadInterval) * time.Second)
 	go a.autoLoad(ctx)
 	return nil
 }
@@ -80,7 +81,7 @@ func (a *Casbinx) load(ctx context.Context) error {
 
 	var resCount int32
 	queue := make(chan *policyQueueItem, len(roleResult.Data))
-	threadNum := max(config.C.Middleware.Casbin.LoadThread, 1)
+	threadNum := max(a.Config.Middleware.Casbin.LoadThread, 1)
 	lock := new(sync.Mutex)
 	buf := new(bytes.Buffer)
 
@@ -119,7 +120,7 @@ func (a *Casbinx) load(ctx context.Context) error {
 	// Always swap in a fresh enforcer, even with no policies: keeping the old
 	// one would continue to allow permissions that were just revoked.
 	// Policies are loaded from memory, so nothing is written to the work dir.
-	modelFile := filepath.Join(config.C.General.WorkDir, config.C.Middleware.Casbin.ModelFile)
+	modelFile := filepath.Join(a.Config.General.WorkDir, a.Config.Middleware.Casbin.ModelFile)
 	m, err := model.NewModelFromFile(modelFile)
 	if err != nil {
 		logging.Context(ctx).Error("Failed to load casbin model", zap.Error(err))
@@ -137,7 +138,7 @@ func (a *Casbinx) load(ctx context.Context) error {
 		logging.Context(ctx).Error("Failed to create casbin enforcer", zap.Error(err))
 		return err
 	}
-	e.EnableLog(config.C.IsDebug())
+	e.EnableLog(a.Config.IsDebug())
 	a.enforcer.Store(e)
 
 	logging.Context(ctx).Info("Casbin load policy",

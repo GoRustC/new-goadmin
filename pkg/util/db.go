@@ -34,6 +34,17 @@ func GetDB(ctx context.Context, defDB *gorm.DB) *gorm.DB {
 	return db.WithContext(ctx)
 }
 
+// TableName returns the table name gorm uses for model, including the table
+// prefix from the naming strategy. Use it when building raw joins so the
+// prefix is applied the same way as for regular queries.
+func TableName(db *gorm.DB, model any) (string, error) {
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(model); err != nil {
+		return "", err
+	}
+	return stmt.Schema.Table, nil
+}
+
 func wrapQueryOptions(db *gorm.DB, opts QueryOptions) *gorm.DB {
 	if len(opts.SelectFields) > 0 {
 		db = db.Select(opts.SelectFields)

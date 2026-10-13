@@ -23,6 +23,7 @@ import (
 
 // Menu management for RBAC
 type Menu struct {
+	Config          *config.Config
 	Cache           cachex.Cacher
 	Trans           *util.Trans
 	MenuDAL         *dal.Menu
@@ -311,7 +312,7 @@ func (a *Menu) Get(ctx context.Context, id string) (*schema.Menu, error) {
 
 // Create a new menu in the data access object.
 func (a *Menu) Create(ctx context.Context, formItem *schema.MenuForm) (*schema.Menu, error) {
-	if config.C.General.DenyOperateMenu {
+	if a.Config.General.DenyOperateMenu {
 		return nil, errors.BadRequest("", "Menu creation is not allowed")
 	}
 
@@ -364,7 +365,7 @@ func (a *Menu) Create(ctx context.Context, formItem *schema.MenuForm) (*schema.M
 
 // Update the specified menu in the data access object.
 func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm) error {
-	if config.C.General.DenyOperateMenu {
+	if a.Config.General.DenyOperateMenu {
 		return errors.BadRequest("", "Menu update is not allowed")
 	}
 
@@ -460,7 +461,7 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 
 // Delete the specified menu from the data access object.
 func (a *Menu) Delete(ctx context.Context, id string) error {
-	if config.C.General.DenyOperateMenu {
+	if a.Config.General.DenyOperateMenu {
 		return errors.BadRequest("", "Menu deletion is not allowed")
 	}
 

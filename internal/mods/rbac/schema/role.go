@@ -3,7 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 )
 
@@ -25,10 +24,6 @@ type Role struct {
 	CreatedAt   time.Time `json:"created_at" gorm:"index;"`      // Create time
 	UpdatedAt   time.Time `json:"updated_at" gorm:"index;"`      // Update time
 	Menus       RoleMenus `json:"menus" gorm:"-"`                // Role menu list
-}
-
-func (a *Role) TableName() string {
-	return config.C.FormatTableName("role")
 }
 
 // Defining the query parameters for the `Role` struct.

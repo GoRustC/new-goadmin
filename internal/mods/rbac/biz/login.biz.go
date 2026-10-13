@@ -24,6 +24,7 @@ import (
 
 // Login management for RBAC
 type Login struct {
+	Config      *config.Config
 	Cache       cachex.Cacher
 	Auth        jwtx.Auther
 	UserDAL     *dal.User
@@ -33,8 +34,8 @@ type Login struct {
 }
 
 func (a *Login) ParseUserID(c *gin.Context) (string, error) {
-	rootID := config.C.General.Root.ID
-	if config.C.Middleware.Auth.Disable {
+	rootID := a.Config.General.Root.ID
+	if a.Config.Middleware.Auth.Disable {
 		return rootID, nil
 	}
 
@@ -95,10 +96,10 @@ func (a *Login) ParseUserID(c *gin.Context) (string, error) {
 }
 
 // This function generates a new captcha ID and returns it as a `schema.Captcha` struct. The length of
-// the captcha is determined by the `config.C.Util.Captcha.Length` configuration value.
+// the captcha is determined by the `Util.Captcha.Length` configuration value.
 func (a *Login) GetCaptcha(ctx context.Context) (*schema.Captcha, error) {
 	return &schema.Captcha{
-		CaptchaID: captcha.NewLen(config.C.Util.Captcha.Length),
+		CaptchaID: captcha.NewLen(a.Config.Util.Captcha.Length),
 	}, nil
 }
 
@@ -108,7 +109,7 @@ func (a *Login) ResponseCaptcha(ctx context.Context, w http.ResponseWriter, id s
 		return errors.NotFound("", "Captcha id not found")
 	}
 
-	err := captcha.WriteImage(w, id, config.C.Util.Captcha.Width, config.C.Util.Captcha.Height)
+	err := captcha.WriteImage(w, id, a.Config.Util.Captcha.Width, a.Config.Util.Captcha.Height)
 	if err != nil {
 		if err == captcha.ErrNotFound {
 			return errors.NotFound("", "Captcha id not found")
@@ -145,12 +146,12 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 	ctx = logging.NewTag(ctx, logging.TagKeyLogin)
 
 	// login by root
-	if formItem.Username == config.C.General.Root.Username {
-		if !verifyRootPassword(config.C.General.Root.Password, formItem.Password) {
+	if formItem.Username == a.Config.General.Root.Username {
+		if !verifyRootPassword(a.Config.General.Root.Password, formItem.Password) {
 			return nil, errors.BadRequest(config.ErrInvalidUsernameOrPassword, "Incorrect username or password")
 		}
 
-		userID := config.C.General.Root.ID
+		userID := a.Config.General.Root.ID
 		ctx = logging.NewUserID(ctx, userID)
 		logging.Context(ctx).Info("Login by root")
 		return a.genUserToken(ctx, userID)
@@ -186,7 +187,7 @@ func (a *Login) Login(ctx context.Context, formItem *schema.LoginForm) (*schema.
 
 	userCache := util.UserCache{RoleIDs: roleIDs}
 	err = a.Cache.Set(ctx, config.CacheNSForUser, userID, userCache.String(),
-		time.Duration(config.C.Dictionary.UserCacheExp)*time.Hour)
+		time.Duration(a.Config.Dictionary.UserCacheExp)*time.Hour)
 	if err != nil {
 		logging.Context(ctx).Error("Failed to set cache", zap.Error(err))
 	}
@@ -240,9 +241,9 @@ func (a *Login) Logout(ctx context.Context) error {
 func (a *Login) GetUserInfo(ctx context.Context) (*schema.User, error) {
 	if util.FromIsRootUser(ctx) {
 		return &schema.User{
-			ID:       config.C.General.Root.ID,
-			Username: config.C.General.Root.Username,
-			Name:     config.C.General.Root.Name,
+			ID:       a.Config.General.Root.ID,
+			Username: a.Config.General.Root.Username,
+			Name:     a.Config.General.Root.Name,
 			Status:   schema.UserStatusActivated,
 		}, nil
 	}

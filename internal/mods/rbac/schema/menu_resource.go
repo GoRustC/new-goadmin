@@ -3,7 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
 	"github.com/LyricTian/gin-admin/v10/pkg/util"
 )
 
@@ -15,10 +14,6 @@ type MenuResource struct {
 	Path      string    `json:"path" gorm:"size:255;"`        // API request path (e.g. /api/v1/users/:id)
 	CreatedAt time.Time `json:"created_at" gorm:"index;"`     // Create time
 	UpdatedAt time.Time `json:"updated_at" gorm:"index;"`     // Update time
-}
-
-func (a *MenuResource) TableName() string {
-	return config.C.FormatTableName("menu_resource")
 }
 
 // Defining the query parameters for the `MenuResource` struct.

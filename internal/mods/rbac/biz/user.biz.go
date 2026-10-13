@@ -15,6 +15,7 @@ import (
 
 // User management for RBAC
 type User struct {
+	Config      *config.Config
 	Cache       cachex.Cacher
 	Trans       *util.Trans
 	UserDAL     *dal.User
@@ -94,10 +95,10 @@ func (a *User) Create(ctx context.Context, formItem *schema.UserForm) (*schema.U
 	}
 
 	if formItem.Password == "" {
-		if config.C.General.DefaultLoginPwd == "" {
+		if a.Config.General.DefaultLoginPwd == "" {
 			return nil, errors.BadRequest("", "Password is required")
 		}
-		formItem.Password = config.C.General.DefaultLoginPwd
+		formItem.Password = a.Config.General.DefaultLoginPwd
 	}
 
 	if err := formItem.FillTo(user); err != nil {
@@ -202,11 +203,11 @@ func (a *User) ResetPassword(ctx context.Context, id string) error {
 		return errors.NotFound("", "User not found")
 	}
 
-	if config.C.General.DefaultLoginPwd == "" {
+	if a.Config.General.DefaultLoginPwd == "" {
 		return errors.BadRequest("", "Password reset is disabled because no default password is configured")
 	}
 
-	hashPass, err := hash.GeneratePassword(config.C.General.DefaultLoginPwd)
+	hashPass, err := hash.GeneratePassword(a.Config.General.DefaultLoginPwd)
 	if err != nil {
 		return errors.BadRequest("", "Failed to generate hash password: %s", err.Error())
 	}
