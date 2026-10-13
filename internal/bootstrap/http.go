@@ -213,6 +213,8 @@ func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Inject
 			Password: config.C.Middleware.RateLimiter.Store.Redis.Password,
 			DB:       config.C.Middleware.RateLimiter.Store.Redis.DB,
 			Username: config.C.Middleware.RateLimiter.Store.Redis.Username,
+
+			KeyPrefix: config.C.Storage.Cache.KeyPrefix,
 		},
 	}))
 

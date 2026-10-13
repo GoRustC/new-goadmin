@@ -142,7 +142,7 @@ func (a *RBAC) initCaptchaStore() {
 			Username:  cfg.Redis.Username,
 			Password:  cfg.Redis.Password,
 			DB:        cfg.Redis.DB,
-			KeyPrefix: cfg.Redis.KeyPrefix,
+			KeyPrefix: a.Config.Storage.Cache.KeyPrefix + cfg.Redis.KeyPrefix,
 		}, captcha.Expiration)
 		a.captchaStore = s
 		captcha.SetCustomStore(s)

@@ -127,7 +127,7 @@ func TestMain(m *testing.M) {
 	if c := config.C.Util.Captcha; c.CacheType == "redis" {
 		inner = captchax.NewRedisStore(captchax.RedisConfig{
 			Addr: c.Redis.Addr, Username: c.Redis.Username, Password: c.Redis.Password,
-			DB: c.Redis.DB, KeyPrefix: c.Redis.KeyPrefix,
+			DB: c.Redis.DB, KeyPrefix: config.C.Storage.Cache.KeyPrefix + c.Redis.KeyPrefix, // as the module does
 		}, captcha.Expiration)
 	}
 	captchas = &recordingStore{Store: inner, digits: map[string]string{}}
@@ -341,7 +341,8 @@ func TestLoginAndPermissions(t *testing.T) {
 	other := jwtx.New(jwtx.NewStoreWithCache(cachex.NewRedisCache(cachex.RedisConfig{
 		Addr: config.C.Middleware.Auth.Store.Redis.Addr,
 		DB:   config.C.Middleware.Auth.Store.Redis.DB,
-	}, cachex.WithDelimiter(config.C.Middleware.Auth.Store.Delimiter))),
+	}, cachex.WithDelimiter(config.C.Middleware.Auth.Store.Delimiter),
+		cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))),
 		jwtx.SetSigningKey(config.C.Middleware.Auth.SigningKey, ""))
 	if _, err := other.ParseSubject(context.Background(), token); err != jwtx.ErrInvalidToken {
 		t.Fatalf("another instance accepted a logged-out token: err=%v", err)
@@ -355,8 +356,9 @@ func TestRateLimiterRedisStore(t *testing.T) {
 	}
 	ctx := context.Background()
 	s := middleware.NewRateLimiterRedisStore(middleware.RateLimiterRedisConfig{
-		Addr: config.C.Storage.Cache.Redis.Addr,
-		DB:   config.C.Middleware.RateLimiter.Store.Redis.DB,
+		Addr:      config.C.Storage.Cache.Redis.Addr,
+		DB:        config.C.Middleware.RateLimiter.Store.Redis.DB,
+		KeyPrefix: config.C.Storage.Cache.KeyPrefix,
 	})
 	key := fmt.Sprintf("e2e-ip-%d", time.Now().UnixNano())
 

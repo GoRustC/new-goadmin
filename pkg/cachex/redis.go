@@ -2,7 +2,6 @@ package cachex
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -68,7 +67,7 @@ type redisCache struct {
 }
 
 func (a *redisCache) getKey(ns, key string) string {
-	return fmt.Sprintf("%s%s%s", ns, a.opts.Delimiter, key)
+	return a.opts.key(ns, key)
 }
 
 func (a *redisCache) Set(ctx context.Context, ns, key, value string, expiration ...time.Duration) error {

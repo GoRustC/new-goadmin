@@ -2,7 +2,6 @@ package cachex
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -24,6 +23,21 @@ var defaultDelimiter = ":"
 
 type options struct {
 	Delimiter string
+	KeyPrefix string
+}
+
+// key builds the stored key: KeyPrefix, then the namespace, the delimiter and
+// the key.
+func (o *options) key(ns, key string) string {
+	return o.KeyPrefix + ns + o.Delimiter + key
+}
+
+// WithKeyPrefix puts prefix in front of every key, so several applications
+// or environments can share one Redis database without colliding.
+func WithKeyPrefix(prefix string) Option {
+	return func(o *options) {
+		o.KeyPrefix = prefix
+	}
 }
 
 type Option func(*options)
@@ -59,7 +73,7 @@ type memCache struct {
 }
 
 func (a *memCache) getKey(ns, key string) string {
-	return fmt.Sprintf("%s%s%s", ns, a.opts.Delimiter, key)
+	return a.opts.key(ns, key)
 }
 
 func (a *memCache) Set(ctx context.Context, ns, key, value string, expiration ...time.Duration) error {

@@ -46,7 +46,7 @@
 - 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
 - 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
-- 配置项变化：新增 `MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
+- 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 
 ## 环境要求
 
@@ -140,6 +140,7 @@ sudo systemctl enable --now ginadmin
 
 - 每个实例占用的数据库连接数为 `Storage.DB.MaxOpenConns` 加日志 hook 的 `MaxOpenConns`（样例为 25 + 4）。所有实例合计要小于数据库的 `max_connections`（MySQL 默认 151，PostgreSQL 默认 100）。
 - 多实例部署需要所有实例共用同一个 Redis：权限变更、登出、验证码和限流都依赖它。生产样例已全部使用 Redis。
+- 多个应用或环境共用一个 Redis 库时，为每个设置不同的 `Storage.Cache.KeyPrefix`，避免键冲突。
 - 首次部署请先启动一个实例完成建表和菜单导入，再启动其余实例，避免并发初始化。
 
 ## 安全机制

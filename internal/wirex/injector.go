@@ -118,15 +118,15 @@ func InitCacher(ctx context.Context) (cachex.Cacher, func(), error) {
 			DB:       cfg.Redis.DB,
 			Username: cfg.Redis.Username,
 			Password: cfg.Redis.Password,
-		}, cachex.WithDelimiter(cfg.Delimiter))
+		}, cachex.WithDelimiter(cfg.Delimiter), cachex.WithKeyPrefix(cfg.KeyPrefix))
 	case "badger":
 		cache = cachex.NewBadgerCache(cachex.BadgerConfig{
 			Path: cfg.Badger.Path,
-		}, cachex.WithDelimiter(cfg.Delimiter))
+		}, cachex.WithDelimiter(cfg.Delimiter), cachex.WithKeyPrefix(cfg.KeyPrefix))
 	default:
 		cache = cachex.NewMemoryCache(cachex.MemoryConfig{
 			CleanupInterval: time.Second * time.Duration(cfg.Memory.CleanupInterval),
-		}, cachex.WithDelimiter(cfg.Delimiter))
+		}, cachex.WithDelimiter(cfg.Delimiter), cachex.WithKeyPrefix(cfg.KeyPrefix))
 	}
 
 	return cache, func() {
@@ -164,15 +164,15 @@ func InitAuth(ctx context.Context) (jwtx.Auther, func(), error) {
 			DB:       cfg.Store.Redis.DB,
 			Username: cfg.Store.Redis.Username,
 			Password: cfg.Store.Redis.Password,
-		}, cachex.WithDelimiter(cfg.Store.Delimiter))
+		}, cachex.WithDelimiter(cfg.Store.Delimiter), cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))
 	case "badger":
 		cache = cachex.NewBadgerCache(cachex.BadgerConfig{
 			Path: cfg.Store.Badger.Path,
-		}, cachex.WithDelimiter(cfg.Store.Delimiter))
+		}, cachex.WithDelimiter(cfg.Store.Delimiter), cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))
 	default:
 		cache = cachex.NewMemoryCache(cachex.MemoryConfig{
 			CleanupInterval: time.Second * time.Duration(cfg.Store.Memory.CleanupInterval),
-		}, cachex.WithDelimiter(cfg.Store.Delimiter))
+		}, cachex.WithDelimiter(cfg.Store.Delimiter), cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))
 	}
 
 	auth := jwtx.New(jwtx.NewStoreWithCache(cache), opts...)

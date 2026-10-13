@@ -55,6 +55,7 @@ Name = "Admin"
 # signals must be shared.
 Type = "redis"
 Delimiter = ":"
+KeyPrefix = "ginadmin:" # set a distinct prefix per application or environment sharing this Redis
 
 [Storage.Cache.Redis]
 Addr = "${GINADMIN_REDIS_ADDR}"

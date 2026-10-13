@@ -61,6 +61,10 @@ type Storage struct {
 	Cache struct {
 		Type      string `default:"memory"` // memory/badger/redis
 		Delimiter string `default:":"`      // delimiter for key
+		// Prepended to every key this application writes to the cache, the
+		// token store, the rate limiter and the captcha store, so several
+		// applications or environments can share one Redis database.
+		KeyPrefix string
 		Memory    struct {
 			CleanupInterval int `default:"60"` // seconds
 		}

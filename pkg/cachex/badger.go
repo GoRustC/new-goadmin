@@ -2,7 +2,6 @@ package cachex
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 	"unsafe"
@@ -43,7 +42,7 @@ type badgerCache struct {
 }
 
 func (a *badgerCache) getKey(ns, key string) string {
-	return fmt.Sprintf("%s%s%s", ns, a.opts.Delimiter, key)
+	return a.opts.key(ns, key)
 }
 
 func (a *badgerCache) strToBytes(s string) []byte {

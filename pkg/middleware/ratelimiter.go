@@ -54,9 +54,9 @@ func RateLimiterWithConfig(config RateLimiterConfig) gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 		if userID := util.FromUserID(ctx); userID != "" {
-			allowed, err = store.Allow(ctx, userID, time.Second*time.Duration(config.Period), config.MaxRequestsPerUser)
+			allowed, err = store.Allow(ctx, "user:"+userID, time.Second*time.Duration(config.Period), config.MaxRequestsPerUser)
 		} else {
-			allowed, err = store.Allow(ctx, c.ClientIP(), time.Second*time.Duration(config.Period), config.MaxRequestsPerIP)
+			allowed, err = store.Allow(ctx, "ip:"+c.ClientIP(), time.Second*time.Duration(config.Period), config.MaxRequestsPerIP)
 		}
 
 		if err != nil {
@@ -113,6 +113,10 @@ type RateLimiterRedisConfig struct {
 	Username string
 	Password string
 	DB       int
+	// KeyPrefix is prepended to every identifier, see cachex.WithKeyPrefix.
+	// redis_rate adds its own fixed "rate:" in front, so keys look like
+	// "rate:<KeyPrefix>ip:<addr>".
+	KeyPrefix string
 }
 
 func NewRateLimiterRedisStore(config RateLimiterRedisConfig) RateLimiterStorer {
@@ -125,11 +129,13 @@ func NewRateLimiterRedisStore(config RateLimiterRedisConfig) RateLimiterStorer {
 
 	return &RateLimiterRedisStore{
 		limiter: redis_rate.NewLimiter(rdb),
+		prefix:  config.KeyPrefix,
 	}
 }
 
 type RateLimiterRedisStore struct {
 	limiter *redis_rate.Limiter
+	prefix  string
 }
 
 func (s *RateLimiterRedisStore) Allow(ctx context.Context, identifier string, period time.Duration, maxRequests int) (bool, error) {
@@ -137,7 +143,7 @@ func (s *RateLimiterRedisStore) Allow(ctx context.Context, identifier string, pe
 		return true, nil
 	}
 
-	result, err := s.limiter.Allow(ctx, identifier, redis_rate.Limit{
+	result, err := s.limiter.Allow(ctx, s.prefix+identifier, redis_rate.Limit{
 		Rate:   maxRequests,
 		Burst:  maxRequests,
 		Period: period,
