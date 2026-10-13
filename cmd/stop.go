@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"strconv"
+	"strings"
+	"syscall"
 
 	"github.com/urfave/cli/v2"
 )
@@ -17,15 +19,23 @@ func StopCmd() *cli.Command {
 		Action: func(c *cli.Context) error {
 			appName := c.App.Name
 			lockFile := fmt.Sprintf("%s.lock", appName)
-			pid, err := os.ReadFile(lockFile)
+			content, err := os.ReadFile(lockFile)
 			if err != nil {
 				return err
 			}
+			pid, err := strconv.Atoi(strings.TrimSpace(string(content)))
+			if err != nil || pid <= 1 {
+				return fmt.Errorf("%s does not contain a valid process id: %q", lockFile, content)
+			}
 
-			command := exec.Command("kill", string(pid))
-			err = command.Start()
+			// Ask the server to shut down gracefully; keep the lock file if
+			// the signal could not be delivered.
+			proc, err := os.FindProcess(pid)
 			if err != nil {
 				return err
+			}
+			if err := proc.Signal(syscall.SIGTERM); err != nil {
+				return fmt.Errorf("signal process %d: %w", pid, err)
 			}
 
 			err = os.Remove(lockFile)

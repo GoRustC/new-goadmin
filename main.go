@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/GoRustC/new-goadmin/cmd"
@@ -27,9 +28,10 @@ func main() {
 		cmd.StartCmd(),
 		cmd.StopCmd(),
 		cmd.VersionCmd(VERSION),
+		cmd.HashPasswordCmd(),
 	}
-	err := app.Run(os.Args)
-	if err != nil {
-		panic(err)
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
 	}
 }

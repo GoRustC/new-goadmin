@@ -26,7 +26,7 @@ type RunConfig struct {
 
 // The Run function initializes and starts a service with configuration and logging, and handles
 // cleanup upon exit.
-func Run(ctx context.Context, runCfg RunConfig) error {
+func Run(ctx context.Context, runCfg RunConfig) (err error) {
 	defer func() {
 		if err := zap.L().Sync(); err != nil {
 			fmt.Printf("failed to sync zap logger: %s \n", err.Error())
@@ -36,7 +36,9 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 	// Load configuration.
 	workDir := runCfg.WorkDir
 	staticDir := runCfg.StaticDir
-	config.MustLoad(workDir, strings.Split(runCfg.Configs, ",")...)
+	if err := config.Load(workDir, strings.Split(runCfg.Configs, ",")...); err != nil {
+		return err
+	}
 	config.C.General.WorkDir = workDir
 	config.C.Middleware.Static.Dir = staticDir
 	config.C.Print()
@@ -51,6 +53,14 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 		return err
 	}
 	ctx = logging.NewTag(ctx, logging.TagKeyMain)
+	// On any startup failure below, log it and flush the log hook before
+	// returning; a successful run exits through util.Run's cleanup instead.
+	defer func() {
+		if err != nil {
+			logging.Context(ctx).Error("Failed to start service", zap.Error(err))
+			cleanLoggerFn()
+		}
+	}()
 
 	logging.Context(ctx).Info("starting service ...",
 		zap.String("version", config.C.General.Version),
@@ -90,13 +100,17 @@ func Run(ctx context.Context, runCfg RunConfig) error {
 	}
 
 	if err := injector.M.Init(ctx); err != nil {
+		_ = injector.M.Release(ctx)
+		cleanInjectorFn()
 		return err
 	}
 
 	return util.Run(ctx, func(ctx context.Context) (func(), error) {
 		cleanHTTPServerFn, err := startHTTPServer(ctx, injector)
 		if err != nil {
-			return cleanInjectorFn, err
+			_ = injector.M.Release(ctx)
+			cleanInjectorFn()
+			return nil, err
 		}
 
 		return func() {

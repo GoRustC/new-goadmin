@@ -28,11 +28,10 @@ func StartCmd() *cli.Command {
 				Value:       "configs",
 			},
 			&cli.StringFlag{
-				Name:        "config",
-				Aliases:     []string{"c"},
-				Usage:       "Runtime configuration files or directory (relative to workdir, multiple separated by commas)",
-				DefaultText: "dev",
-				Value:       "dev",
+				Name:     "config",
+				Aliases:  []string{"c"},
+				Usage:    "Runtime configuration files or directory, relative to workdir, comma separated: dev for local development, prod for production",
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "static",
@@ -91,15 +90,11 @@ func StartCmd() *cli.Command {
 				os.Exit(0)
 			}
 
-			err := bootstrap.Run(context.Background(), bootstrap.RunConfig{
+			return bootstrap.Run(context.Background(), bootstrap.RunConfig{
 				WorkDir:   workDir,
 				Configs:   configs,
 				StaticDir: staticDir,
 			})
-			if err != nil {
-				panic(err)
-			}
-			return nil
 		},
 	}
 }
