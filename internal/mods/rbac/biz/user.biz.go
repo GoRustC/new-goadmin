@@ -148,6 +148,12 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 	if err := a.guard().checkManageUser(ctx, id); err != nil {
 		return err
 	}
+	// Setting a password while editing is a password reset in effect.
+	if formItem.Password != "" {
+		if err := a.guard().checkRootOnly(ctx, "change another user's password"); err != nil {
+			return err
+		}
+	}
 	if err := a.guard().checkAssignRoles(ctx, roleIDsOf(formItem.Roles)); err != nil {
 		return err
 	}
@@ -229,6 +235,9 @@ func (a *User) Delete(ctx context.Context, id string) error {
 }
 
 func (a *User) ResetPassword(ctx context.Context, id string) error {
+	if err := a.guard().checkRootOnly(ctx, "reset passwords"); err != nil {
+		return err
+	}
 	exists, err := a.UserDAL.Exists(ctx, id)
 	if err != nil {
 		return err

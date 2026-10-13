@@ -81,6 +81,20 @@ func within(menus, allowed map[string]struct{}) bool {
 	return true
 }
 
+// ErrRootOnlyID identifies the 403 returned when a non-root operator sets or
+// resets another user's password.
+const ErrRootOnlyID = "com.rbac.root-only"
+
+// checkRootOnly allows the action only for root, or for calls without an
+// authenticated operator (startup tasks). It does not depend on menu.json:
+// granting the API to a menu must not hand the action to other users.
+func (g privilegeGuard) checkRootOnly(ctx context.Context, action string) error {
+	if _, restricted := g.restricted(ctx); restricted {
+		return errors.Forbidden(ErrRootOnlyID, "Only root can %s", action)
+	}
+	return nil
+}
+
 func escalation(detail string) error {
 	return errors.Forbidden(ErrPrivilegeEscalationID, "%s", detail)
 }

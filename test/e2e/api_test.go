@@ -716,3 +716,58 @@ func TestSearchIsPortable(t *testing.T) {
 		t.Errorf("role name search should ignore case, got %d roles", len(roles))
 	}
 }
+
+// Only root may set or reset another user's password, whatever menu.json
+// grants: the check lives in the business layer, not in casbin.
+func TestPasswordResetIsRootOnly(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	userPage := menuID(t, "user")
+
+	// Grant the reset API through the user page, as a misconfigured menu.json
+	// would, so casbin lets the request through to the business layer.
+	res := schema.MenuResource{ID: "rp" + s[len(s)-10:], MenuID: userPage, Method: http.MethodPatch, Path: "/api/v1/users/{id}/reset-pwd"}
+	if err := injector.DB.Create(&res).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { injector.DB.Delete(&schema.MenuResource{}, "id = ?", res.ID) })
+
+	adminRole := createRole(t, root, "rpa"+s, userPage, childMenuID(t, "user", "edit"))
+	lowRole := createRole(t, root, "rpl"+s, userPage)
+	createUser(t, root, "rpa"+s, "Pass-1", adminRole)
+	targetID := createUser(t, root, "rpl"+s, "Pass-1", lowRole)
+	admin := mustLogin(t, "rpa"+s, "Pass-1")
+	eventually(t, "admin can edit users", http.MethodGet, "/api/v1/users", admin, http.StatusOK)
+
+	rootOnly := func(what string, r response) {
+		t.Helper()
+		expectStatus(t, what, r, http.StatusForbidden)
+		if r.Error == nil || r.Error.ID != "com.rbac.root-only" {
+			t.Fatalf("%s: expected com.rbac.root-only, got %+v", what, r.Error)
+		}
+	}
+
+	// Wait until casbin has loaded the extra grant, then the business layer
+	// must still refuse.
+	deadline := time.Now().Add(15 * time.Second)
+	var r response
+	for time.Now().Before(deadline) {
+		r = call(t, http.MethodPatch, "/api/v1/users/"+targetID+"/reset-pwd", admin, nil)
+		if r.Error != nil && r.Error.ID != "com.casbin.denied" {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	rootOnly("admin resets a password despite a casbin grant", r)
+
+	rootOnly("admin sets a password while editing a user",
+		call(t, http.MethodPut, "/api/v1/users/"+targetID, admin, userForm("rpl"+s, "New-Pass-9", "activated", lowRole)))
+	expectStatus(t, "admin edits a user without touching the password",
+		call(t, http.MethodPut, "/api/v1/users/"+targetID, admin, userForm("rpl"+s, "", "activated", lowRole)), http.StatusOK)
+	mustLogin(t, "rpl"+s, "Pass-1")
+
+	// Root may.
+	expectStatus(t, "root sets a password", call(t, http.MethodPut, "/api/v1/users/"+targetID, root,
+		userForm("rpl"+s, "New-Pass-9", "activated", lowRole)), http.StatusOK)
+	mustLogin(t, "rpl"+s, "New-Pass-9")
+}
