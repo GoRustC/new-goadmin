@@ -2,7 +2,6 @@ package biz
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/LyricTian/gin-admin/v10/internal/config"
@@ -175,5 +174,5 @@ func (a *Role) Delete(ctx context.Context, id string) error {
 }
 
 func (a *Role) syncToCasbin(ctx context.Context) error {
-	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, fmt.Sprintf("%d", time.Now().Unix()))
+	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, util.NewXID())
 }

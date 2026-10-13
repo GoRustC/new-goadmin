@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,6 +56,13 @@ func (a *Casbinx) Load(ctx context.Context) error {
 			"Use the redis cache when running more than one instance.")
 	}
 
+	// Read the reload signal before loading, so a change made while loading
+	// shows up as a new value on the next tick.
+	signal, err := a.reloadSignal(ctx)
+	if err != nil {
+		return err
+	}
+
 	a.enforcer = new(atomic.Value)
 	if err := a.load(ctx); err != nil {
 		return err
@@ -64,8 +70,15 @@ func (a *Casbinx) Load(ctx context.Context) error {
 
 	// Create the ticker before starting the goroutine so Release never races with it.
 	a.ticker = time.NewTicker(time.Duration(a.Config.Middleware.Casbin.AutoLoadInterval) * time.Second)
-	go a.autoLoad(ctx)
+	go a.autoLoad(ctx, signal)
 	return nil
+}
+
+// reloadSignal returns the value role and menu changes write to the cache.
+// Every change writes a new unique ID, so any difference means "reload".
+func (a *Casbinx) reloadSignal(ctx context.Context) (string, error) {
+	val, _, err := a.Cache.Get(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin)
+	return val, err
 }
 
 func (a *Casbinx) load(ctx context.Context) error {
@@ -199,30 +212,24 @@ func (a *Casbinx) queryRoleResources(ctx context.Context, roleID string) (schema
 	return menuResourceResult.Data, nil
 }
 
-func (a *Casbinx) autoLoad(ctx context.Context) {
-	var lastUpdated int64
+// autoLoad reloads policies whenever the reload signal differs from the one
+// last handled. Comparing for inequality rather than ordering means changes
+// made within the same second, or on hosts with skewed clocks, are not lost.
+func (a *Casbinx) autoLoad(ctx context.Context, handled string) {
 	for range a.ticker.C {
-		val, ok, err := a.Cache.Get(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin)
+		signal, err := a.reloadSignal(ctx)
 		if err != nil {
 			logging.Context(ctx).Error("Failed to get cache", zap.Error(err), zap.String("key", config.CacheKeyForSyncToCasbin))
 			continue
-		} else if !ok {
+		}
+		if signal == handled {
 			continue
 		}
-
-		updated, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			logging.Context(ctx).Error("Failed to parse cache value", zap.Error(err), zap.String("val", val))
-			continue
+		if err := a.load(ctx); err != nil {
+			logging.Context(ctx).Error("Failed to load casbin policy", zap.Error(err))
+			continue // keep the old value so the next tick retries
 		}
-
-		if lastUpdated < updated {
-			if err := a.load(ctx); err != nil {
-				logging.Context(ctx).Error("Failed to load casbin policy", zap.Error(err))
-			} else {
-				lastUpdated = updated
-			}
-		}
+		handled = signal
 	}
 }
 

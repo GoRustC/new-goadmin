@@ -2,7 +2,6 @@ package biz
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -512,5 +511,5 @@ func (a *Menu) delete(ctx context.Context, id string) error {
 }
 
 func (a *Menu) syncToCasbin(ctx context.Context) error {
-	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, fmt.Sprintf("%d", time.Now().Unix()))
+	return a.Cache.Set(ctx, config.CacheNSForRole, config.CacheKeyForSyncToCasbin, util.NewXID())
 }
