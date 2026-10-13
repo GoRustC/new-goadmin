@@ -3,10 +3,10 @@ package biz
 import (
 	"context"
 
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/dal"
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 // ErrPrivilegeEscalationID identifies the 403 returned when a non-root

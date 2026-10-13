@@ -3,7 +3,7 @@ package mods
 import (
 	"context"
 
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 )

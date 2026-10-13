@@ -3,9 +3,9 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
-	"github.com/LyricTian/gin-admin/v10/pkg/gormx"
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
+	"github.com/GoRustC/new-goadmin/internal/config"
+	"github.com/GoRustC/new-goadmin/pkg/gormx"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/spf13/cast"
 )
 

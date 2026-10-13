@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
-	"github.com/LyricTian/gin-admin/v10/internal/mods"
-	"github.com/LyricTian/gin-admin/v10/pkg/cachex"
-	"github.com/LyricTian/gin-admin/v10/pkg/gormx"
-	"github.com/LyricTian/gin-admin/v10/pkg/jwtx"
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
+	"github.com/GoRustC/new-goadmin/internal/config"
+	"github.com/GoRustC/new-goadmin/internal/mods"
+	"github.com/GoRustC/new-goadmin/pkg/cachex"
+	"github.com/GoRustC/new-goadmin/pkg/gormx"
+	"github.com/GoRustC/new-goadmin/pkg/jwtx"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )

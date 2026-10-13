@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/LyricTian/gin-admin/v10/internal/bootstrap"
-	"github.com/LyricTian/gin-admin/v10/internal/config"
+	"github.com/GoRustC/new-goadmin/internal/bootstrap"
+	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/urfave/cli/v2"
 )
 

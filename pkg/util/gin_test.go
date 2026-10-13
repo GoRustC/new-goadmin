@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/gin-gonic/gin"
 )
 

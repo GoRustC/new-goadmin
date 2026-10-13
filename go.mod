@@ -1,4 +1,4 @@
-module github.com/LyricTian/gin-admin/v10
+module github.com/GoRustC/new-goadmin
 
 go 1.27.0
 

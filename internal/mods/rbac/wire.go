@@ -1,9 +1,9 @@
 package rbac
 
 import (
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/api"
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/biz"
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/dal"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/api"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/biz"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/google/wire"
 )
 

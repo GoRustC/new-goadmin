@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/encoding/json"
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
+	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
 type Config struct {

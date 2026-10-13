@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
-	"github.com/LyricTian/gin-admin/v10/pkg/crypto/hash"
+	"github.com/GoRustC/new-goadmin/internal/config"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
+	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 )
 
 func unique() string { return fmt.Sprintf("%d", time.Now().UnixNano()) }

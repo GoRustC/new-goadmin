@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/encoding/json"
-	"github.com/LyricTian/gin-admin/v10/pkg/encoding/toml"
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
+	"github.com/GoRustC/new-goadmin/pkg/encoding/toml"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/creasty/defaults"
 )
 

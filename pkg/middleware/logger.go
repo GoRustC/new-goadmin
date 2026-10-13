@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

@@ -3,7 +3,7 @@ package biz
 import (
 	"testing"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/crypto/hash"
+	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 )
 
 func TestVerifyRootPassword(t *testing.T) {

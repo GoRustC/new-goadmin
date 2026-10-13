@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"gorm.io/gorm"
 )
 

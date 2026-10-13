@@ -3,7 +3,7 @@ package schema
 import (
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 // Menu resource management for RBAC

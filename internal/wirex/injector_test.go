@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
+	"github.com/GoRustC/new-goadmin/internal/config"
 )
 
 func TestResolveSigningKeys(t *testing.T) {

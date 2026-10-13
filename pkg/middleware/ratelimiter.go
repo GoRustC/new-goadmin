@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis_rate/v10"
 	"github.com/patrickmn/go-cache"

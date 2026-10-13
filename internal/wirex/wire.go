@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/wire"
 
-	"github.com/LyricTian/gin-admin/v10/internal/mods"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/internal/mods"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 func BuildInjector(ctx context.Context) (*Injector, func(), error) {

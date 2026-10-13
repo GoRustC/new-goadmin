@@ -3,9 +3,9 @@ package schema
 import (
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/crypto/hash"
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/go-playground/validator/v10"
 )
 

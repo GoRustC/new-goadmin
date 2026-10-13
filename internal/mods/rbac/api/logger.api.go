@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/biz"
-	"github.com/LyricTian/gin-admin/v10/internal/mods/rbac/schema"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/biz"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/gin-gonic/gin"
 )
 

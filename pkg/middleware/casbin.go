@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/LyricTian/gin-admin/v10/pkg/errors"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 )

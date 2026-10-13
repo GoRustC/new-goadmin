@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/internal/config"
-	_ "github.com/LyricTian/gin-admin/v10/internal/swagger"
-	"github.com/LyricTian/gin-admin/v10/internal/wirex"
-	"github.com/LyricTian/gin-admin/v10/pkg/logging"
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/internal/config"
+	_ "github.com/GoRustC/new-goadmin/internal/swagger"
+	"github.com/GoRustC/new-goadmin/internal/wirex"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"go.uber.org/zap"
 )
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/util"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/gin-gonic/gin"
 )
 

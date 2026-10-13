@@ -3,7 +3,7 @@ package util
 import (
 	"context"
 
-	"github.com/LyricTian/gin-admin/v10/pkg/encoding/json"
+	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
 	"gorm.io/gorm"
 )
 
