@@ -66,6 +66,9 @@ func (a *Logger) StopRetention() {
 // Query loggers from the data access object based on the provided parameters and options.
 func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam) (*schema.LoggerQueryResult, error) {
 	params.Pagination = true
+	if err := params.ParseTimeRange(); err != nil {
+		return nil, err
+	}
 
 	result, err := a.LoggerDAL.Query(ctx, params, schema.LoggerQueryOptions{
 		QueryOptions: util.QueryOptions{

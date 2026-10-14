@@ -3,6 +3,7 @@ package schema
 import (
 	"time"
 
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -29,8 +30,46 @@ type LoggerQueryParam struct {
 	LikeUserName string `form:"userName"`  // User Name
 	Tag          string `form:"tag"`       // Log tag
 	LikeMessage  string `form:"message"`   // Log message
-	StartTime    string `form:"startTime"` // Start time
-	EndTime      string `form:"endTime"`   // End time
+	StartTime    string `form:"startTime"` // Start time, "2006-01-02 15:04:05", "2006-01-02" or RFC 3339
+	EndTime      string `form:"endTime"`   // End time, same formats
+
+	// Parsed from StartTime and EndTime by ParseTimeRange.
+	StartAt *time.Time `form:"-"`
+	EndAt   *time.Time `form:"-"`
+}
+
+// timeLayouts are the accepted StartTime and EndTime formats. Values without
+// a zone are read in the server's local time zone.
+var timeLayouts = []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
+
+func parseQueryTime(field, v string) (*time.Time, error) {
+	if v == "" {
+		return nil, nil
+	}
+	for _, layout := range timeLayouts {
+		if t, err := time.ParseInLocation(layout, v, time.Local); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, errors.BadRequest("", "Invalid %s %q, use \"2006-01-02 15:04:05\", \"2006-01-02\" or RFC 3339", field, v)
+}
+
+// ParseTimeRange validates StartTime and EndTime and fills StartAt and EndAt.
+// Either bound may be omitted.
+func (a *LoggerQueryParam) ParseTimeRange() error {
+	start, err := parseQueryTime("startTime", a.StartTime)
+	if err != nil {
+		return err
+	}
+	end, err := parseQueryTime("endTime", a.EndTime)
+	if err != nil {
+		return err
+	}
+	if start != nil && end != nil && start.After(*end) {
+		return errors.BadRequest("", "startTime must not be after endTime")
+	}
+	a.StartAt, a.EndAt = start, end
+	return nil
 }
 
 // Defining the query options for the `Logger` struct.

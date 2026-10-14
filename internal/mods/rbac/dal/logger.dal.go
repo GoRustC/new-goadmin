@@ -47,8 +47,12 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 	if v := params.Tag; v != "" {
 		db = db.Where("tag = ?", v)
 	}
-	if start, end := params.StartTime, params.EndTime; start != "" && end != "" {
-		db = db.Where("created_at BETWEEN ? AND ?", start, end)
+	// Compared as timestamps, never as the raw query strings.
+	if params.StartAt != nil {
+		db = db.Where("created_at >= ?", *params.StartAt)
+	}
+	if params.EndAt != nil {
+		db = db.Where("created_at <= ?", *params.EndAt)
 	}
 
 	var list schema.Loggers

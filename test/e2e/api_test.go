@@ -917,3 +917,22 @@ func TestConcurrentDuplicateCreates(t *testing.T) {
 	injector.DB.Where("username = ?", "dup"+s).First(&u)
 	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/users/"+u.ID, root, nil) })
 }
+
+// Time bounds used to apply only when both were given, as raw strings: a
+// single bound was silently ignored and invalid values answered 200.
+func TestLoggerTimeRangeValidation(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	q := func(params string) int {
+		return call(t, http.MethodGet, "/api/v1/loggers?current=1&pageSize=5&"+params, root, nil).status
+	}
+	for _, bad := range []string{"startTime=yesterday", "endTime=2026-13-01", "startTime=2026-10-02&endTime=2026-10-01"} {
+		if code := q(bad); code != http.StatusBadRequest {
+			t.Errorf("%s: got HTTP %d, want 400", bad, code)
+		}
+	}
+	for _, good := range []string{"startTime=2020-01-01", "endTime=2099-01-01+00%3A00%3A00", "startTime=2020-01-01T00%3A00%3A00Z&endTime=2099-01-01"} {
+		if code := q(good); code != http.StatusOK {
+			t.Errorf("%s: got HTTP %d, want 200", good, code)
+		}
+	}
+}

@@ -56,4 +56,22 @@ func TestLoggerQueryFiltersAndFillsUserNames(t *testing.T) {
 	if alice.PageResult.Total != 2 || len(alice.Data) != 2 {
 		t.Fatalf("filter by user name: total=%d rows=%d, want 2", alice.PageResult.Total, len(alice.Data))
 	}
+
+	// Time bounds compare timestamps; either bound may be given alone.
+	from := now.Add(1500 * time.Millisecond) // after rows a and b
+	recent, err := l.Query(ctx, schema.LoggerQueryParam{PaginationParam: page, StartAt: &from})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recent.PageResult.Total != 2 {
+		t.Fatalf("rows since %v: %d, want 2", from, recent.PageResult.Total)
+	}
+	upTo := now.Add(500 * time.Millisecond) // only row a
+	early, err := l.Query(ctx, schema.LoggerQueryParam{PaginationParam: page, EndAt: &upTo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.PageResult.Total != 1 {
+		t.Fatalf("rows up to %v: %d, want 1", upTo, early.PageResult.Total)
+	}
 }
