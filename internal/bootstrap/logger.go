@@ -35,7 +35,11 @@ func initLoggerHook(_ context.Context, cfg *logging.HookConfig) (*logging.Hook, 
 			return nil, err
 		}
 
-		hook := logging.NewHook(logging.NewGormHook(db),
+		gormHook, err := logging.NewGormHook(db)
+		if err != nil {
+			return nil, err
+		}
+		hook := logging.NewHook(gormHook,
 			logging.SetHookExtra(extra),
 			logging.SetHookMaxJobs(cfg.MaxBuffer),
 			logging.SetHookMaxWorkers(cfg.MaxThread))

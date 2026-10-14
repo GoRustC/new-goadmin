@@ -1,3 +1,5 @@
+// Package config defines the service configuration, loads it from TOML files
+// and environment variables, and validates it at startup.
 package config
 
 import (
@@ -8,6 +10,8 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
+// Config is the complete service configuration. See configs/ for the files
+// it is loaded from and README.md for the environment variables.
 type Config struct {
 	Logger     logging.LoggerConfig
 	General    General
@@ -17,6 +21,7 @@ type Config struct {
 	Dictionary Dictionary
 }
 
+// General holds application-wide settings.
 type General struct {
 	AppName            string `default:"ginadmin"`
 	Version            string `default:"v10.1.0"`
@@ -57,6 +62,7 @@ type General struct {
 	}
 }
 
+// Storage configures the cache and the database.
 type Storage struct {
 	Cache struct {
 		Type      string `default:"memory"` // memory/badger/redis
@@ -98,6 +104,7 @@ type Storage struct {
 	}
 }
 
+// Util configures auxiliary features such as the login captcha.
 type Util struct {
 	Captcha struct {
 		Length    int    `default:"4"`
@@ -114,6 +121,7 @@ type Util struct {
 	}
 }
 
+// Dictionary holds tunable business values.
 type Dictionary struct {
 	UserCacheExp int `default:"4"` // hours
 	// Delete logger table rows older than this many days, checked hourly.
@@ -121,6 +129,7 @@ type Dictionary struct {
 	LoggerRetentionDays int
 }
 
+// IsDebug reports whether debug mode is on.
 func (c *Config) IsDebug() bool {
 	return c.General.Debug
 }
@@ -196,6 +205,8 @@ func maskValue(v any) any {
 	}
 }
 
+// PreLoad lets the captcha, rate limiter and token stores reuse the cache's
+// Redis server when they use Redis without an address of their own.
 func (c *Config) PreLoad() {
 	if addr := c.Storage.Cache.Redis.Addr; addr != "" {
 		username := c.Storage.Cache.Redis.Username
@@ -221,6 +232,8 @@ func (c *Config) PreLoad() {
 	}
 }
 
+// Print writes the configuration, with secrets masked, to stdout unless
+// General.DisablePrintConfig is set.
 func (c *Config) Print() {
 	if c.General.DisablePrintConfig {
 		return

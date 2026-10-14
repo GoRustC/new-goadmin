@@ -1,3 +1,4 @@
+// Package api contains the HTTP handlers of the rbac module.
 package api
 
 import (

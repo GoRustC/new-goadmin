@@ -1,3 +1,5 @@
+// Package rbac implements users, roles, menus, login and operation logs, with
+// permissions enforced by casbin.
 package rbac
 
 import (

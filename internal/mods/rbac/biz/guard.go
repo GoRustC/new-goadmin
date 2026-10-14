@@ -1,3 +1,4 @@
+// Package biz contains the business logic of the rbac module.
 package biz
 
 import (

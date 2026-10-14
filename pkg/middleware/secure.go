@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SecureHeadersConfig configures SecureHeadersWithConfig.
 type SecureHeadersConfig struct {
 	// API path prefixes that only return data. They also get a
 	// Content-Security-Policy that forbids loading or framing anything.

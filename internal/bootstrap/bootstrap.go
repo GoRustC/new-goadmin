@@ -1,3 +1,6 @@
+// Package bootstrap starts the service: it loads the configuration,
+// initializes logging and dependencies, and runs the HTTP server until a
+// shutdown signal arrives.
 package bootstrap
 
 import (
@@ -12,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/GoRustC/new-goadmin/internal/config"
+	// Registers the generated OpenAPI document with swag.
 	_ "github.com/GoRustC/new-goadmin/internal/swagger"
 	"github.com/GoRustC/new-goadmin/internal/wirex"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
@@ -25,8 +29,8 @@ type RunConfig struct {
 	StaticDir string // Static files directory
 }
 
-// The Run function initializes and starts a service with configuration and logging, and handles
-// cleanup upon exit.
+// Run loads the configuration, initializes logging and the dependencies, and
+// serves HTTP until a shutdown signal arrives, then releases everything.
 func Run(ctx context.Context, runCfg RunConfig) (err error) {
 	defer func() {
 		if err := zap.L().Sync(); err != nil {

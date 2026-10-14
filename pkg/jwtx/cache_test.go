@@ -10,10 +10,12 @@ import (
 
 var defaultDelimiter = ":"
 
+// MemoryConfig configures NewMemoryCache.
 type MemoryConfig struct {
 	CleanupInterval time.Duration
 }
 
+// NewMemoryCache returns an in-memory Cacher for tests.
 func NewMemoryCache(cfg MemoryConfig) Cacher {
 	return &memCache{
 		cache: cache.New(0, cfg.CleanupInterval),

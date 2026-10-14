@@ -14,20 +14,27 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
+// CopyBodyConfig configures CopyBodyWithConfig. Bodies larger than
+// MaxContentLen bytes, after gzip decompression, are refused with 413.
 type CopyBodyConfig struct {
 	AllowedPathPrefixes []string
 	SkippedPathPrefixes []string
 	MaxContentLen       int64
 }
 
+// DefaultCopyBodyConfig allows bodies of up to 32MB.
 var DefaultCopyBodyConfig = CopyBodyConfig{
 	MaxContentLen: 32 << 20, // 32MB
 }
 
+// CopyBody reads the request body into memory with DefaultCopyBodyConfig, so
+// it can be read again by handlers and stored by the operation log. A gzip
+// body is decompressed.
 func CopyBody() gin.HandlerFunc {
 	return CopyBodyWithConfig(DefaultCopyBodyConfig)
 }
 
+// CopyBodyWithConfig is CopyBody with the given configuration.
 func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !AllowedPathPrefixes(c, config.AllowedPathPrefixes...) ||

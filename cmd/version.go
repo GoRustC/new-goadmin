@@ -6,7 +6,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// This function creates a CLI command that prints the version number.
+// VersionCmd returns the version command, which prints v.
 func VersionCmd(v string) *cli.Command {
 	return &cli.Command{
 		Name:  "version",

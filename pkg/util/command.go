@@ -1,3 +1,5 @@
+// Package util provides helpers shared by the modules: request parsing and
+// responses, database transactions and queries, context values and IDs.
 package util
 
 import (
@@ -12,8 +14,9 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
-// The Run function sets up a signal handler and executes a handler function until a termination signal
-// is received.
+// Run starts the service with handler and blocks until SIGINT, SIGTERM or
+// SIGQUIT arrives, then calls the cleanup function handler returned and exits
+// the process. SIGHUP is logged and ignored.
 func Run(ctx context.Context, handler func(ctx context.Context) (func(), error)) error {
 	state := 1
 	sc := make(chan os.Signal, 1)

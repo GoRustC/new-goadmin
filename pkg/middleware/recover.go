@@ -14,19 +14,24 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
+// RecoveryConfig configures RecoveryWithConfig. Skip is the number of stack
+// frames left out of the logged stack trace.
 type RecoveryConfig struct {
 	Skip int // default: 3
 }
 
+// DefaultRecoveryConfig is used by Recovery.
 var DefaultRecoveryConfig = RecoveryConfig{
 	Skip: 3,
 }
 
-// Recovery from any panics and writes a 500 if there was one.
+// Recovery recovers from panics in later handlers, logs them with the stack
+// trace and responds 500.
 func Recovery() gin.HandlerFunc {
 	return RecoveryWithConfig(DefaultRecoveryConfig)
 }
 
+// RecoveryWithConfig is Recovery with the given configuration.
 func RecoveryWithConfig(config RecoveryConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {

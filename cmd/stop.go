@@ -10,8 +10,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// The function defines a CLI command to stop a server by reading a lock file, killing the process with
-// the corresponding PID, and removing the lock file.
+// StopCmd returns the stop command, which signals the process recorded in
+// the lock file by a daemon start and removes the file.
 func StopCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "stop",

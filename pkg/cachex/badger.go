@@ -1,3 +1,5 @@
+// Package cachex provides a key-value cache with memory, Redis and Badger
+// backends.
 package cachex
 
 import (
@@ -9,11 +11,13 @@ import (
 	"github.com/dgraph-io/badger/v4"
 )
 
+// BadgerConfig configures NewBadgerCache. Path is the database directory.
 type BadgerConfig struct {
 	Path string
 }
 
-// Create badger-based cache
+// NewBadgerCache returns a cache stored in an embedded Badger database, which
+// survives restarts without a separate server.
 func NewBadgerCache(cfg BadgerConfig, opts ...Option) Cacher {
 	defaultOpts := &options{
 		Delimiter: defaultDelimiter,

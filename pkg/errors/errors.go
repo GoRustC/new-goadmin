@@ -33,6 +33,7 @@ func Wrapf(err error, format string, args ...any) error {
 	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
 }
 
+// IDs used by the constructors below when id is "".
 const (
 	DefaultBadRequestID            = "bad_request"
 	DefaultUnauthorizedID          = "unauthorized"
@@ -46,7 +47,8 @@ const (
 	DefaultRequestTimeoutID        = "request_timeout"
 )
 
-// Customize the error structure for implementation errors.Error interface
+// Error is an API error. It is sent to the client as JSON in the error field
+// of the response, with Code as the HTTP status.
 type Error struct {
 	ID     string `json:"id,omitempty"`
 	Code   int32  `json:"code,omitempty"`
@@ -54,6 +56,7 @@ type Error struct {
 	Status string `json:"status,omitempty"`
 }
 
+// Error returns the error encoded as JSON.
 func (e *Error) Error() string {
 	b, _ := json.Marshal(e)
 	return string(b)

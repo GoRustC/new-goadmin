@@ -14,7 +14,10 @@ func TestGormHookTruncatesAndToleratesTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewGormHook(db)
+	h, err := NewGormHook(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	entry := `{"ts":1700000000000,"level":"info","msg":"` + strings.Repeat("é", 2000) +
 		`","trace_id":"` + strings.Repeat("t", 200) + `","user_id":12345,"tag":"login","extra":"kept"}`
@@ -48,7 +51,10 @@ func TestGormHookExecBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewGormHook(db)
+	h, err := NewGormHook(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 	entries := [][]byte{
 		[]byte(`{"level":"info","msg":"one"}`),
 		[]byte(`not json`),

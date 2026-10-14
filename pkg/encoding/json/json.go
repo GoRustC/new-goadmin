@@ -1,3 +1,4 @@
+// Package json wraps encoding/json.
 package json
 
 import (
@@ -5,6 +6,7 @@ import (
 	"fmt"
 )
 
+// Aliases of encoding/json.
 var (
 	Marshal       = json.Marshal
 	Unmarshal     = json.Unmarshal
@@ -13,6 +15,7 @@ var (
 	NewEncoder    = json.NewEncoder
 )
 
+// MarshalToString encodes v as JSON, or returns "" if v cannot be encoded.
 func MarshalToString(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {

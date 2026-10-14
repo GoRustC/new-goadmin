@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// RedisConfig configures NewRedisCache.
 type RedisConfig struct {
 	Addr     string
 	Username string
@@ -16,7 +17,7 @@ type RedisConfig struct {
 	DB       int
 }
 
-// Create redis-based cache
+// NewRedisCache returns a cache stored in a Redis server.
 func NewRedisCache(cfg RedisConfig, opts ...Option) Cacher {
 	cli := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
@@ -28,12 +29,13 @@ func NewRedisCache(cfg RedisConfig, opts ...Option) Cacher {
 	return newRedisCache(cli, opts...)
 }
 
-// Use redis client create cache
+// NewRedisCacheWithClient returns a cache that uses an existing Redis client.
 func NewRedisCacheWithClient(cli *redis.Client, opts ...Option) Cacher {
 	return newRedisCache(cli, opts...)
 }
 
-// Use redis cluster client create cache
+// NewRedisCacheWithClusterClient returns a cache that uses an existing Redis
+// cluster client.
 func NewRedisCacheWithClusterClient(cli *redis.ClusterClient, opts ...Option) Cacher {
 	return newRedisCache(cli, opts...)
 }
@@ -131,7 +133,7 @@ func (a *redisCache) GetAndDelete(ctx context.Context, ns, key string) (string, 
 }
 
 func (a *redisCache) Iterator(ctx context.Context, ns string, fn func(ctx context.Context, key, value string) bool) error {
-	var cursor uint64 = 0
+	var cursor uint64
 
 LB_LOOP:
 	for {

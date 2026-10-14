@@ -1,3 +1,5 @@
+// Package gormx opens gorm databases (MySQL, PostgreSQL, SQLite) with
+// connection pooling, read replicas and SQL logging through zap.
 package gormx
 
 import (
@@ -19,6 +21,7 @@ import (
 	"gorm.io/plugin/dbresolver"
 )
 
+// ResolverConfig routes Tables to read replicas and extra sources.
 type ResolverConfig struct {
 	DBType   string // mysql/postgres/sqlite3
 	Sources  []string
@@ -26,6 +29,7 @@ type ResolverConfig struct {
 	Tables   []string
 }
 
+// Config configures New. MaxLifetime and MaxIdleTime are in seconds.
 type Config struct {
 	Debug        bool
 	PrepareStmt  bool
@@ -82,6 +86,8 @@ func ensureSQLiteDir(dsn string) error {
 	return nil
 }
 
+// New opens the database described by cfg. For MySQL it first creates the
+// database if it does not exist; for SQLite it creates the file's directory.
 func New(cfg Config) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 

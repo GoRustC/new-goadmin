@@ -49,15 +49,15 @@ func (l loginLock) failures(ctx context.Context, username string) (int, error) {
 
 // check returns a 429 error while the name is locked.
 func (l loginLock) check(ctx context.Context, username string) error {
-	max := l.cfg.General.LoginLock.MaxFailures
-	if max <= 0 {
+	maxFailures := l.cfg.General.LoginLock.MaxFailures
+	if maxFailures <= 0 {
 		return nil
 	}
 	n, err := l.failures(ctx, username)
 	if err != nil {
 		return err
 	}
-	if n >= max {
+	if n >= maxFailures {
 		return errors.TooManyRequests(config.ErrLoginLockedID,
 			"Too many failed login attempts, try again in %d minutes", l.cfg.General.LoginLock.LockMinutes)
 	}

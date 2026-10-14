@@ -1,3 +1,4 @@
+// Package middleware provides the gin middlewares of the HTTP server.
 package middleware
 
 import (
@@ -7,6 +8,9 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
+// AuthConfig configures AuthWithConfig. ParseUserID authenticates the request
+// and returns the user ID; requests for which Skipper returns true, or whose
+// path is skipped or not allowed, pass through unauthenticated.
 type AuthConfig struct {
 	AllowedPathPrefixes []string
 	SkippedPathPrefixes []string
@@ -15,6 +19,9 @@ type AuthConfig struct {
 	ParseUserID         func(c *gin.Context) (string, error)
 }
 
+// AuthWithConfig returns a middleware that authenticates requests and stores
+// the user ID in the request context. A user whose ID is RootID is marked as
+// root. Authentication errors are sent as the response.
 func AuthWithConfig(config AuthConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !AllowedPathPrefixes(c, config.AllowedPathPrefixes...) ||

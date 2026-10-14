@@ -27,7 +27,7 @@ import (
 type Login struct {
 	Config      *config.Config
 	Cache       cachex.Cacher
-	Auth        jwtx.Auther
+	Auth        jwtx.Authenticator
 	UserDAL     *dal.User
 	UserRoleDAL *dal.UserRole
 	MenuDAL     *dal.Menu
@@ -457,10 +457,10 @@ func verifyRootPassword(configured, given string) bool {
 // sessionExpired reports whether the session behind claims is older than
 // Middleware.Auth.MaxSessionHours.
 func (a *Login) sessionExpired(claims *jwtx.Claims) bool {
-	max := a.Config.Middleware.Auth.MaxSessionHours
-	if max <= 0 {
+	maxHours := a.Config.Middleware.Auth.MaxSessionHours
+	if maxHours <= 0 {
 		return false
 	}
 	start := claims.SessionStart()
-	return !start.IsZero() && time.Since(start) > time.Duration(max)*time.Hour
+	return !start.IsZero() && time.Since(start) > time.Duration(maxHours)*time.Hour
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 )
 
+// TokenInfo is an issued token as returned to the client.
 type TokenInfo interface {
 	GetAccessToken() string
 	GetTokenType() string

@@ -11,20 +11,24 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
+// LoggerConfig selects which request paths Logger records.
 type LoggerConfig struct {
 	AllowedPathPrefixes []string
 	SkippedPathPrefixes []string
 }
 
+// DefaultLoggerConfig records every request.
 var DefaultLoggerConfig = LoggerConfig{}
 
-// Record request metadata for quick troubleshooting.
+// Logger records the metadata of each request with DefaultLoggerConfig.
 // Request and response bodies are intentionally not logged: they may carry
-// credentials (login passwords, access tokens) that must never reach log storage.
+// credentials (login passwords, access tokens) that must never reach log
+// storage.
 func Logger() gin.HandlerFunc {
 	return LoggerWithConfig(DefaultLoggerConfig)
 }
 
+// LoggerWithConfig is Logger with the given configuration.
 func LoggerWithConfig(config LoggerConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !AllowedPathPrefixes(c, config.AllowedPathPrefixes...) ||

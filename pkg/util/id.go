@@ -5,12 +5,13 @@ import (
 	"github.com/rs/xid"
 )
 
-// The function "NewXID" generates a new unique identifier (XID) and returns it as a string.
+// NewXID returns a new globally unique, time-sortable 20-character ID.
 func NewXID() string {
 	return xid.New().String()
 }
 
-// The function generates a new UUID and panics if there is an error.
+// MustNewUUID returns a new random (version 4) UUID. It panics if the system
+// random source fails.
 func MustNewUUID() string {
 	v, err := uuid.NewRandom()
 	if err != nil {

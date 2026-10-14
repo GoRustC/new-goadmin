@@ -1,3 +1,5 @@
+// Package jwtx issues and validates HMAC-signed JWT access tokens and keeps
+// revoked tokens in a cache.
 package jwtx
 
 import (
@@ -8,7 +10,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Auther interface {
+// Authenticator issues and validates access tokens.
+type Authenticator interface {
 	// Generate a JWT (JSON Web Token) with the provided subject.
 	GenerateToken(ctx context.Context, subject string, opts ...TokenOption) (TokenInfo, error)
 	// Invalidate a token by removing it from the token store.
@@ -23,7 +26,10 @@ type Auther interface {
 }
 
 var (
-	ErrInvalidToken      = errors.New("Invalid token")
+	// ErrInvalidToken is returned for a token that is malformed, expired,
+	// signed with an unknown key or revoked.
+	ErrInvalidToken = errors.New("jwtx: invalid token")
+	// ErrMissingSigningKey is returned when no signing key is configured.
 	ErrMissingSigningKey = errors.New("jwtx: signing key is required")
 )
 
@@ -44,14 +50,19 @@ type options struct {
 	tokenType     string
 }
 
+// Option configures New.
 type Option func(*options)
 
+// SetSigningMethod sets the HMAC method used to sign tokens. The default is
+// HS512.
 func SetSigningMethod(method jwt.SigningMethod) Option {
 	return func(o *options) {
 		o.signingMethod = method
 	}
 }
 
+// SetSigningKey sets the signing key. Tokens signed with oldKey are still
+// accepted, so the key can be rotated without logging everyone out.
 func SetSigningKey(key, oldKey string) Option {
 	return func(o *options) {
 		o.signingKey = []byte(key)
@@ -61,13 +72,16 @@ func SetSigningKey(key, oldKey string) Option {
 	}
 }
 
+// SetExpired sets the token lifetime in seconds. The default is 7200.
 func SetExpired(expired int) Option {
 	return func(o *options) {
 		o.expired = expired
 	}
 }
 
-func New(store Storer, opts ...Option) Auther {
+// New returns an Authenticator that signs tokens with HMAC and records
+// revoked tokens in store. store may be nil, which disables revocation.
+func New(store Storer, opts ...Option) Authenticator {
 	o := options{
 		tokenType:     "Bearer",
 		expired:       7200,
@@ -105,6 +119,7 @@ func New(store Storer, opts ...Option) Auther {
 	}
 }
 
+// JWTAuth is the Authenticator returned by New.
 type JWTAuth struct {
 	opts  *options
 	store Storer
@@ -143,6 +158,7 @@ func WithAuthTime(t time.Time) TokenOption {
 	return func(o *tokenOptions) { o.authTime = t }
 }
 
+// GenerateToken issues a token for subject.
 func (a *JWTAuth) GenerateToken(ctx context.Context, subject string, opts ...TokenOption) (TokenInfo, error) {
 	if len(a.opts.signingKey) == 0 {
 		return nil, ErrMissingSigningKey
@@ -209,6 +225,7 @@ func (a *JWTAuth) callStore(fn func(Storer) error) error {
 	return nil
 }
 
+// DestroyToken revokes tokenStr until it expires.
 func (a *JWTAuth) DestroyToken(ctx context.Context, tokenStr string) error {
 	claims, err := a.parseToken(tokenStr)
 	if err != nil {
@@ -221,6 +238,7 @@ func (a *JWTAuth) DestroyToken(ctx context.Context, tokenStr string) error {
 	})
 }
 
+// ParseSubject validates tokenStr and returns its subject.
 func (a *JWTAuth) ParseSubject(ctx context.Context, tokenStr string) (string, error) {
 	claims, err := a.ParseClaims(ctx, tokenStr)
 	if err != nil {
@@ -229,6 +247,8 @@ func (a *JWTAuth) ParseSubject(ctx context.Context, tokenStr string) (string, er
 	return claims.Subject, nil
 }
 
+// ParseClaims validates tokenStr, including the revocation store, and returns
+// its claims.
 func (a *JWTAuth) ParseClaims(ctx context.Context, tokenStr string) (*Claims, error) {
 	if tokenStr == "" {
 		return nil, ErrInvalidToken
@@ -253,6 +273,7 @@ func (a *JWTAuth) ParseClaims(ctx context.Context, tokenStr string) (*Claims, er
 	return claims, nil
 }
 
+// Release closes the revocation store.
 func (a *JWTAuth) Release(ctx context.Context) error {
 	return a.callStore(func(store Storer) error {
 		return store.Close(ctx)

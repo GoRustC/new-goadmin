@@ -16,6 +16,10 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
+// RateLimiterConfig configures RateLimiterWithConfig. Each authenticated user
+// may send MaxRequestsPerUser requests, and each anonymous client IP
+// MaxRequestsPerIP requests, per Period seconds. StoreType is "memory" or
+// "redis".
 type RateLimiterConfig struct {
 	Enable              bool
 	AllowedPathPrefixes []string
@@ -28,6 +32,8 @@ type RateLimiterConfig struct {
 	RedisStoreConfig    RateLimiterRedisConfig
 }
 
+// RateLimiterWithConfig returns a middleware that answers 429 once a client
+// exceeds its limit. If the store fails, the request is refused with 500.
 func RateLimiterWithConfig(config RateLimiterConfig) gin.HandlerFunc {
 	if !config.Enable {
 		return Empty()
@@ -71,25 +77,31 @@ func RateLimiterWithConfig(config RateLimiterConfig) gin.HandlerFunc {
 	}
 }
 
+// RateLimiterStorer counts requests per identifier.
 type RateLimiterStorer interface {
 	Allow(ctx context.Context, identifier string, period time.Duration, maxRequests int) (bool, error)
 }
 
+// NewRateLimiterMemoryStore returns a store that keeps counters in process
+// memory. It suits a single instance only.
 func NewRateLimiterMemoryStore(config RateLimiterMemoryConfig) RateLimiterStorer {
 	return &RateLimiterMemoryStore{
 		cache: cache.New(config.Expiration, config.CleanupInterval),
 	}
 }
 
+// RateLimiterMemoryConfig configures NewRateLimiterMemoryStore.
 type RateLimiterMemoryConfig struct {
 	Expiration      time.Duration
 	CleanupInterval time.Duration
 }
 
+// RateLimiterMemoryStore keeps request counters in process memory.
 type RateLimiterMemoryStore struct {
 	cache *cache.Cache
 }
 
+// Allow reports whether identifier may send another request now.
 func (s *RateLimiterMemoryStore) Allow(ctx context.Context, identifier string, period time.Duration, maxRequests int) (bool, error) {
 	if period.Seconds() <= 0 || maxRequests <= 0 {
 		return true, nil
@@ -109,6 +121,7 @@ func (s *RateLimiterMemoryStore) Allow(ctx context.Context, identifier string, p
 	return true, nil
 }
 
+// RateLimiterRedisConfig configures NewRateLimiterRedisStore.
 type RateLimiterRedisConfig struct {
 	Addr     string
 	Username string
@@ -120,6 +133,8 @@ type RateLimiterRedisConfig struct {
 	KeyPrefix string
 }
 
+// NewRateLimiterRedisStore returns a store that keeps counters in Redis, so
+// instances sharing the Redis server share the limits.
 func NewRateLimiterRedisStore(config RateLimiterRedisConfig) RateLimiterStorer {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     config.Addr,
@@ -134,11 +149,13 @@ func NewRateLimiterRedisStore(config RateLimiterRedisConfig) RateLimiterStorer {
 	}
 }
 
+// RateLimiterRedisStore keeps request counters in Redis.
 type RateLimiterRedisStore struct {
 	limiter *redis_rate.Limiter
 	prefix  string
 }
 
+// Allow reports whether identifier may send another request now.
 func (s *RateLimiterRedisStore) Allow(ctx context.Context, identifier string, period time.Duration, maxRequests int) (bool, error) {
 	if period.Seconds() <= 0 || maxRequests <= 0 {
 		return true, nil

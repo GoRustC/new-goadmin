@@ -1,3 +1,5 @@
+// Command ginadmin runs the admin API server. See README.md for configuration
+// and deployment.
 package main
 
 import (

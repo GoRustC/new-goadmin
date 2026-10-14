@@ -9,12 +9,16 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Trans runs functions in a database transaction.
 type Trans struct {
 	DB *gorm.DB
 }
 
+// TransFunc is a function run by Trans.Exec.
 type TransFunc func(context.Context) error
 
+// Exec runs fn in a transaction, committed if fn returns nil and rolled back
+// otherwise. If ctx already carries a transaction, fn joins it.
 func (a *Trans) Exec(ctx context.Context, fn TransFunc) error {
 	if _, ok := FromTrans(ctx); ok {
 		return fn(ctx)
@@ -25,6 +29,8 @@ func (a *Trans) Exec(ctx context.Context, fn TransFunc) error {
 	})
 }
 
+// GetDB returns the transaction carried by ctx, or defDB, bound to ctx. It
+// adds FOR UPDATE if ctx was marked by NewRowLock.
 func GetDB(ctx context.Context, defDB *gorm.DB) *gorm.DB {
 	db := defDB
 	if tdb, ok := FromTrans(ctx); ok {
@@ -74,6 +80,8 @@ func wrapQueryOptions(db *gorm.DB, opts QueryOptions) *gorm.DB {
 	return db
 }
 
+// WrapPageQuery runs the query db into out, paginated if pp.Pagination is
+// set. The result is nil when the query is not paginated.
 func WrapPageQuery(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out any) (*PaginationResult, error) {
 	if pp.OnlyCount {
 		var count int64
@@ -120,6 +128,8 @@ func normalizePage(pp PaginationParam) PaginationParam {
 	return pp
 }
 
+// FindPage counts the rows of db and loads the page pp into out. It returns
+// the total count.
 func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out any) (int64, error) {
 	pp = normalizePage(pp)
 	db = db.WithContext(ctx)
@@ -138,6 +148,8 @@ func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOp
 	return count, err
 }
 
+// FindOne loads the first row of db into out and reports whether one was
+// found.
 func FindOne(ctx context.Context, db *gorm.DB, opts QueryOptions, out any) (bool, error) {
 	db = db.WithContext(ctx)
 	db = wrapQueryOptions(db, opts)
@@ -151,6 +163,7 @@ func FindOne(ctx context.Context, db *gorm.DB, opts QueryOptions, out any) (bool
 	return true, nil
 }
 
+// Exists reports whether db matches any row.
 func Exists(ctx context.Context, db *gorm.DB) (bool, error) {
 	db = db.WithContext(ctx)
 	var count int64

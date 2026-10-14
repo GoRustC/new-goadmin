@@ -43,6 +43,7 @@ func NewMemoryStore(expiration time.Duration) *MemoryStore {
 	}
 }
 
+// Set stores the digits of captcha id.
 func (s *MemoryStore) Set(id string, digits []byte) {
 	now := time.Now()
 	s.mu.Lock()
@@ -59,7 +60,9 @@ func (s *MemoryStore) Set(id string, digits []byte) {
 	}
 }
 
-func (s *MemoryStore) Get(id string, clear bool) []byte {
+// Get returns the digits of captcha id, or nil if it does not exist or has
+// expired. remove deletes the captcha.
+func (s *MemoryStore) Get(id string, remove bool) []byte {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.items[id]
@@ -67,7 +70,7 @@ func (s *MemoryStore) Get(id string, clear bool) []byte {
 		return nil
 	}
 	expired := time.Now().After(e.expires)
-	if clear || expired {
+	if remove || expired {
 		delete(s.items, id)
 	}
 	if expired {
@@ -110,8 +113,9 @@ func NewRedisStore(cfg RedisConfig, expiration time.Duration) *RedisStore {
 	}
 }
 
-// The store interface has no error return, so failures are logged and a
-// failed Get reports the captcha as missing, which rejects the login.
+// Set stores the digits of captcha id. The store interface has no error
+// return, so failures are logged and a failed Get reports the captcha as
+// missing, which rejects the login.
 func (s *RedisStore) Set(id string, digits []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
@@ -120,14 +124,16 @@ func (s *RedisStore) Set(id string, digits []byte) {
 	}
 }
 
-func (s *RedisStore) Get(id string, clear bool) []byte {
+// Get returns the digits of captcha id, or nil if it does not exist, has
+// expired or cannot be read. remove deletes the captcha atomically.
+func (s *RedisStore) Get(id string, remove bool) []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 	var (
 		val []byte
 		err error
 	)
-	if clear {
+	if remove {
 		val, err = s.cli.GetDel(ctx, s.prefix+id).Bytes()
 	} else {
 		val, err = s.cli.Get(ctx, s.prefix+id).Bytes()

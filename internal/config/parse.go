@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 	"sync"
 
 	"github.com/creasty/defaults"
@@ -15,9 +15,11 @@ import (
 
 var (
 	once sync.Once
-	C    = new(Config)
+	// C is the loaded configuration.
+	C = new(Config)
 )
 
+// MustLoad calls Load once and panics if it fails.
 func MustLoad(dir string, names ...string) {
 	once.Do(func() {
 		if err := Load(dir, names...); err != nil {
@@ -26,8 +28,10 @@ func MustLoad(dir string, names ...string) {
 	})
 }
 
-// Loads configuration files in various formats from a directory and parses them into
-// a struct.
+// Load reads the named configuration files, or every .toml and .json file in
+// the named directories, from dir into C, in order, so later files override
+// earlier ones. Defaults are applied first and ${VAR} references are expanded
+// last.
 func Load(dir string, names ...string) error {
 	// Set default values
 	if err := defaults.Set(C); err != nil {
@@ -37,7 +41,7 @@ func Load(dir string, names ...string) error {
 	supportExts := []string{".json", ".toml"}
 	parseFile := func(name string) error {
 		ext := filepath.Ext(name)
-		if ext == "" || !strings.Contains(strings.Join(supportExts, ","), ext) {
+		if !slices.Contains(supportExts, ext) {
 			return nil
 		}
 

@@ -11,6 +11,8 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
+// TraceConfig configures TraceWithConfig. A client's ID in RequestHeaderKey
+// is reused if valid; the trace ID is returned in ResponseTraceKey.
 type TraceConfig struct {
 	AllowedPathPrefixes []string
 	SkippedPathPrefixes []string
@@ -18,15 +20,19 @@ type TraceConfig struct {
 	ResponseTraceKey    string
 }
 
+// DefaultTraceConfig reads X-Request-Id and returns X-Trace-Id.
 var DefaultTraceConfig = TraceConfig{
 	RequestHeaderKey: "X-Request-Id",
 	ResponseTraceKey: "X-Trace-Id",
 }
 
+// Trace assigns each request a trace ID with DefaultTraceConfig and stores it
+// in the request context for logging.
 func Trace() gin.HandlerFunc {
 	return TraceWithConfig(DefaultTraceConfig)
 }
 
+// TraceWithConfig is Trace with the given configuration.
 func TraceWithConfig(config TraceConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !AllowedPathPrefixes(c, config.AllowedPathPrefixes...) ||

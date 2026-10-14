@@ -11,10 +11,14 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// Config is the layout of a logging configuration file.
 type Config struct {
 	Logger LoggerConfig
 }
 
+// LoggerConfig configures the global logger. Debug forces the debug level and
+// console output; File writes to a rotated file instead of stderr; Hooks copy
+// entries to other stores.
 type LoggerConfig struct {
 	Debug      bool
 	Level      string // debug/info/warn/error/dpanic/panic/fatal
@@ -28,6 +32,8 @@ type LoggerConfig struct {
 	Hooks []*HookConfig
 }
 
+// HookConfig configures a log hook. Type selects the HookHandlerFunc that
+// builds it.
 type HookConfig struct {
 	Enable    bool
 	Level     string
@@ -38,8 +44,11 @@ type HookConfig struct {
 	Extra     map[string]string
 }
 
+// HookHandlerFunc builds the hook described by hookCfg, or returns nil to
+// skip it.
 type HookHandlerFunc func(ctx context.Context, hookCfg *HookConfig) (*Hook, error)
 
+// LoadConfigFromToml reads a LoggerConfig from a TOML file.
 func LoadConfigFromToml(filename string) (*LoggerConfig, error) {
 	cfg := &Config{}
 	buf, err := os.ReadFile(filename) //nolint:gosec // Path from the configuration.
@@ -52,6 +61,8 @@ func LoadConfigFromToml(filename string) (*LoggerConfig, error) {
 	return &cfg.Logger, nil
 }
 
+// InitWithConfig replaces the global zap logger according to cfg and returns
+// a function that flushes and closes it, including its hooks.
 func InitWithConfig(ctx context.Context, cfg *LoggerConfig, hookHandle ...HookHandlerFunc) (func(), error) {
 	var zconfig zap.Config
 	if cfg.Debug {

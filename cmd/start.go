@@ -15,8 +15,8 @@ import (
 	"github.com/GoRustC/new-goadmin/internal/config"
 )
 
-// The function defines a CLI command to start a server with various flags and options, including the
-// ability to run as a daemon.
+// StartCmd returns the start command, which runs the server in the
+// foreground, or in the background with --daemon.
 func StartCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "start",

@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// CORSConfig configures CORSWithConfig. Nothing is sent unless Enable is set.
 type CORSConfig struct {
 	Enable          bool
 	AllowAllOrigins bool
@@ -39,11 +40,14 @@ type CORSConfig struct {
 	AllowFiles bool
 }
 
+// DefaultCORSConfig allows every origin with the common methods.
 var DefaultCORSConfig = CORSConfig{
 	AllowOrigins: []string{"*"},
 	AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 }
 
+// CORSWithConfig returns a middleware that answers CORS preflight requests
+// and adds CORS headers, or does nothing if cfg.Enable is false.
 func CORSWithConfig(cfg CORSConfig) gin.HandlerFunc {
 	if !cfg.Enable {
 		return Empty()

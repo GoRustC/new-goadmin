@@ -546,8 +546,8 @@ func TestLoginLockAndEnumeration(t *testing.T) {
 	username := "lk" + s
 	createUser(t, root, username, "Right-1", roleID)
 
-	max := config.C.General.LoginLock.MaxFailures
-	for range max {
+	maxFailures := config.C.General.LoginLock.MaxFailures
+	for range maxFailures {
 		expectStatus(t, "wrong password", login(t, username, "wrong"), http.StatusBadRequest)
 	}
 	locked := login(t, username, "Right-1")
@@ -558,7 +558,7 @@ func TestLoginLockAndEnumeration(t *testing.T) {
 
 	// Names that do not exist lock the same way, so a lock reveals nothing.
 	ghost := "ghost" + s
-	for range max {
+	for range maxFailures {
 		r := login(t, ghost, "x")
 		expectStatus(t, "unknown user", r, http.StatusBadRequest)
 		if r.Error == nil || r.Error.ID != "com.invalid.username-or-password" {

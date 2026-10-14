@@ -1,3 +1,5 @@
+// Package wirex wires the service's dependencies with google/wire. Run go
+// generate in this directory after changing providers.
 package wirex
 
 import (
@@ -62,14 +64,16 @@ func resolveSigningKeys(ctx context.Context, key, oldKey string) (string, string
 	return key, oldKey, nil
 }
 
+// Injector holds the dependencies built by wire for the HTTP server.
 type Injector struct {
 	DB    *gorm.DB
 	Cache cachex.Cacher
-	Auth  jwtx.Auther
+	Auth  jwtx.Authenticator
 	M     *mods.Mods
 }
 
-// It creates a new database connection, and returns a function that closes the connection
+// InitDB opens the configured database and returns a function that closes
+// it.
 func InitDB(ctx context.Context) (*gorm.DB, func(), error) {
 	cfg := config.C.Storage.DB
 
@@ -107,7 +111,8 @@ func InitDB(ctx context.Context) (*gorm.DB, func(), error) {
 	}, nil
 }
 
-// It returns a cachex.Cacher instance, a function to close the cache, and an error
+// InitCacher creates the configured cache and returns a function that closes
+// it.
 func InitCacher(ctx context.Context) (cachex.Cacher, func(), error) {
 	cfg := config.C.Storage.Cache
 
@@ -135,7 +140,9 @@ func InitCacher(ctx context.Context) (cachex.Cacher, func(), error) {
 	}, nil
 }
 
-func InitAuth(ctx context.Context) (jwtx.Auther, func(), error) {
+// InitAuth creates the token authenticator from Middleware.Auth. It fails if
+// the signing key is missing, too short or a publicly known default.
+func InitAuth(ctx context.Context) (jwtx.Authenticator, func(), error) {
 	cfg := config.C.Middleware.Auth
 	signingKey, oldSigningKey, err := resolveSigningKeys(ctx, cfg.SigningKey, cfg.OldSigningKey)
 	if err != nil {

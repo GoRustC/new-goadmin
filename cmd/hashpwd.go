@@ -1,3 +1,5 @@
+// Package cmd defines the command-line interface: start, stop, version and
+// hash-password.
 package cmd
 
 import (

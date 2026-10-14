@@ -40,6 +40,7 @@ func AllowedPathPrefixes(c *gin.Context, prefixes ...string) bool {
 	return len(prefixes) == 0 || matchAnyPathPrefix(c.Request.URL.Path, prefixes)
 }
 
+// Empty returns a middleware that does nothing.
 func Empty() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()

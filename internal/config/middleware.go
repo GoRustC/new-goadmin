@@ -1,5 +1,6 @@
 package config
 
+// Middleware configures the HTTP middlewares.
 type Middleware struct {
 	Recovery struct {
 		Skip int `default:"3"` // skip the first n stack frames

@@ -17,14 +17,18 @@ type storeOptions struct {
 	CacheNS string // default "jwt"
 }
 
+// StoreOption configures NewStoreWithCache.
 type StoreOption func(*storeOptions)
 
+// WithCacheNS sets the cache namespace of revoked tokens. The default is
+// "jwt".
 func WithCacheNS(ns string) StoreOption {
 	return func(o *storeOptions) {
 		o.CacheNS = ns
 	}
 }
 
+// Cacher is the cache used by the token store; cachex.Cacher satisfies it.
 type Cacher interface {
 	Set(ctx context.Context, ns, key, value string, expiration ...time.Duration) error
 	Get(ctx context.Context, ns, key string) (string, bool, error)
@@ -33,6 +37,7 @@ type Cacher interface {
 	Close(ctx context.Context) error
 }
 
+// NewStoreWithCache returns a Storer that keeps revoked tokens in cache.
 func NewStoreWithCache(cache Cacher, opts ...StoreOption) Storer {
 	s := &storeImpl{
 		c: cache,

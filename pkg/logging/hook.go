@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// HookExecuter writes log entries to an external store. Exec receives one
+// JSON-encoded entry and the hook's extra fields.
 type HookExecuter interface {
 	Exec(extra map[string]string, b []byte) error
 	Close() error
@@ -28,31 +30,34 @@ type hookOptions struct {
 	extra      map[string]string
 }
 
-// Set the number of buffers
+// SetHookMaxJobs sets how many entries may wait in the queue. Entries
+// arriving while it is full are dropped. The default is 1024.
 func SetHookMaxJobs(maxJobs int) HookOption {
 	return func(o *hookOptions) {
 		o.maxJobs = maxJobs
 	}
 }
 
-// Set the number of worker threads
+// SetHookMaxWorkers sets how many goroutines write entries. The default
+// is 2.
 func SetHookMaxWorkers(maxWorkers int) HookOption {
 	return func(o *hookOptions) {
 		o.maxWorkers = maxWorkers
 	}
 }
 
-// Set extended parameters
+// SetHookExtra sets fields passed to the executer with every entry.
 func SetHookExtra(extra map[string]string) HookOption {
 	return func(o *hookOptions) {
 		o.extra = extra
 	}
 }
 
-// HookOption a hook parameter options
+// HookOption configures a Hook.
 type HookOption func(*hookOptions)
 
-// Creates a hook to be added to an instance of logger
+// NewHook returns a hook that queues log entries and writes them with exec
+// in the background.
 func NewHook(exec HookExecuter, opt ...HookOption) *Hook {
 	opts := &hookOptions{
 		maxJobs:    1024,

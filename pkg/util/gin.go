@@ -17,7 +17,8 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
-// Get access token from header or query parameter
+// GetToken returns the access token from the Authorization header (with or
+// without the "Bearer " prefix), or from the accessToken query parameter.
 func GetToken(c *gin.Context) string {
 	var token string
 	auth := c.GetHeader("Authorization")
@@ -36,7 +37,8 @@ func GetToken(c *gin.Context) string {
 	return token
 }
 
-// Get body data from context
+// GetBodyData returns the request body copied by the CopyBody middleware, or
+// nil if it was not copied.
 func GetBodyData(c *gin.Context) []byte {
 	if v, ok := c.Get(ReqBodyKey); ok {
 		if b, ok := v.([]byte); ok {
@@ -46,7 +48,8 @@ func GetBodyData(c *gin.Context) []byte {
 	return nil
 }
 
-// Parse body json data to struct
+// ParseJSON binds and validates the JSON body into obj. Failures are
+// returned as 400 errors.
 func ParseJSON(c *gin.Context, obj any) error {
 	if err := c.ShouldBindJSON(obj); err != nil {
 		return errors.BadRequest("", "Failed to parse json: %s", err.Error())
@@ -54,7 +57,8 @@ func ParseJSON(c *gin.Context, obj any) error {
 	return nil
 }
 
-// Parse query parameter to struct
+// ParseQuery binds and validates the query parameters into obj. Failures are
+// returned as 400 errors.
 func ParseQuery(c *gin.Context, obj any) error {
 	if err := c.ShouldBindQuery(obj); err != nil {
 		return errors.BadRequest("", "Failed to parse query: %s", err.Error())
@@ -62,7 +66,8 @@ func ParseQuery(c *gin.Context, obj any) error {
 	return nil
 }
 
-// Parse body form data to struct
+// ParseForm binds and validates the form body into obj. Failures are
+// returned as 400 errors.
 func ParseForm(c *gin.Context, obj any) error {
 	if err := c.ShouldBindWith(obj, binding.Form); err != nil {
 		return errors.BadRequest("", "Failed to parse form: %s", err.Error())
@@ -70,10 +75,11 @@ func ParseForm(c *gin.Context, obj any) error {
 	return nil
 }
 
-// Response json data with status code
 // internalErrorBody is sent when a response cannot be encoded.
 var internalErrorBody = []byte(`{"success":false,"error":{"id":"internal_server_error","code":500,"detail":"Internal Server Error","status":"Internal Server Error"}}`)
 
+// ResJSON writes v as JSON with the given status and aborts the handler
+// chain. A value that cannot be encoded produces a logged 500.
 func ResJSON(c *gin.Context, status int, v any) {
 	buf, err := json.Marshal(v)
 	if err != nil {
@@ -88,6 +94,7 @@ func ResJSON(c *gin.Context, status int, v any) {
 	c.Abort()
 }
 
+// ResSuccess responds 200 with v as the data.
 func ResSuccess(c *gin.Context, v any) {
 	ResJSON(c, http.StatusOK, ResponseResult{
 		Success: true,
@@ -95,12 +102,15 @@ func ResSuccess(c *gin.Context, v any) {
 	})
 }
 
+// ResOK responds 200 with no data.
 func ResOK(c *gin.Context) {
 	ResJSON(c, http.StatusOK, ResponseResult{
 		Success: true,
 	})
 }
 
+// ResPage responds 200 with a page of rows and the total from pr. A nil list
+// is sent as [].
 func ResPage(c *gin.Context, v any, pr *PaginationResult) {
 	var total int64
 	if pr != nil {
@@ -119,6 +129,9 @@ func ResPage(c *gin.Context, v any, pr *PaginationResult) {
 	})
 }
 
+// ResError responds with err. An *errors.Error keeps its code and detail; a
+// duplicate key becomes 409; anything else is logged and sent as a 500
+// without its message. status, if given, overrides the code.
 func ResError(c *gin.Context, err error, status ...int) {
 	var ierr *errors.Error
 	if stderrors.Is(err, gorm.ErrDuplicatedKey) {

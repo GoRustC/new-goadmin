@@ -1,3 +1,4 @@
+// Package dal contains the data access of the rbac module.
 package dal
 
 import (

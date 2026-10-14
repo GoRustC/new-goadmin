@@ -8,7 +8,10 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// Cacher is the interface that wraps the basic Get, Set, and Delete methods.
+// Cacher stores string values under a namespace and a key. Get reports
+// whether the key exists; Iterator calls fn for each entry of a namespace
+// until fn returns false. Expiration is optional; zero or none means no
+// expiry.
 type Cacher interface {
 	Set(ctx context.Context, ns, key, value string, expiration ...time.Duration) error
 	Get(ctx context.Context, ns, key string) (string, bool, error)
@@ -40,18 +43,24 @@ func WithKeyPrefix(prefix string) Option {
 	}
 }
 
+// Option configures a cache.
 type Option func(*options)
 
+// WithDelimiter sets the separator between namespace and key. The default
+// is ":".
 func WithDelimiter(delimiter string) Option {
 	return func(o *options) {
 		o.Delimiter = delimiter
 	}
 }
 
+// MemoryConfig configures NewMemoryCache.
 type MemoryConfig struct {
 	CleanupInterval time.Duration
 }
 
+// NewMemoryCache returns a cache held in process memory, swept for expired
+// entries every CleanupInterval.
 func NewMemoryCache(cfg MemoryConfig, opts ...Option) Cacher {
 	defaultOpts := &options{
 		Delimiter: defaultDelimiter,

@@ -1,3 +1,5 @@
+// Package mods registers the business modules. To add a module, create a
+// package under internal/mods and wire it here.
 package mods
 
 import (

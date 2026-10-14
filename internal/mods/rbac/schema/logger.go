@@ -1,3 +1,5 @@
+// Package schema defines the models, query parameters and request forms of the
+// rbac module.
 package schema
 
 import (

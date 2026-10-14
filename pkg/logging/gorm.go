@@ -1,3 +1,6 @@
+// Package logging configures the global zap logger, carries request fields
+// such as the trace ID in the context, and copies entries to stores such as a
+// database through hooks.
 package logging
 
 import (
@@ -11,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Logger is a log entry stored in the database.
 type Logger struct {
 	ID        string    `gorm:"size:20;primaryKey;" json:"id"`  // Unique ID
 	Level     string    `gorm:"size:20;index;" json:"level"`    // Log level
@@ -23,22 +27,21 @@ type Logger struct {
 	CreatedAt time.Time `gorm:"index;" json:"created_at"`       // Create time
 }
 
-func NewGormHook(db *gorm.DB) *GormHook {
-	err := db.AutoMigrate(new(Logger))
-	if err != nil {
-		panic(err)
+// NewGormHook returns an executer that stores log entries in db, creating
+// the logger table if needed.
+func NewGormHook(db *gorm.DB) (*GormHook, error) {
+	if err := db.AutoMigrate(new(Logger)); err != nil {
+		return nil, fmt.Errorf("migrate the logger table: %w", err)
 	}
-
-	return &GormHook{
-		db: db,
-	}
+	return &GormHook{db: db}, nil
 }
 
-// Gorm Logger Hook
+// GormHook stores log entries in a database through gorm.
 type GormHook struct {
 	db *gorm.DB
 }
 
+// Exec stores one log entry.
 func (h *GormHook) Exec(extra map[string]string, b []byte) error {
 	msg, err := toLogger(extra, b)
 	if err != nil {
@@ -100,6 +103,7 @@ func toLogger(extra map[string]string, b []byte) (*Logger, error) {
 	return msg, nil
 }
 
+// Close closes the database connection of the hook.
 func (h *GormHook) Close() error {
 	db, err := h.db.DB()
 	if err != nil {
@@ -108,13 +112,13 @@ func (h *GormHook) Close() error {
 	return db.Close()
 }
 
-// takeString removes key from data and returns it as a string of at most max
-// characters (0 means no limit). Non-string values become "".
-func takeString(data map[string]any, key string, max int) string {
+// takeString removes key from data and returns it as a string of at most
+// maxLen characters (0 means no limit). Non-string values become "".
+func takeString(data map[string]any, key string, maxLen int) string {
 	v, _ := data[key].(string)
 	delete(data, key)
-	if max > 0 && utf8.RuneCountInString(v) > max {
-		v = string([]rune(v)[:max])
+	if maxLen > 0 && utf8.RuneCountInString(v) > maxLen {
+		v = string([]rune(v)[:maxLen])
 	}
 	return v
 }
