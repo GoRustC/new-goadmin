@@ -1,0 +1,77 @@
+version: "2"
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck and unused, plus:
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - modernize
+    - nilerr
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - usestdlibvars
+  settings:
+    gosec:
+      excludes:
+        - G104 # Unchecked errors are reported by errcheck.
+    modernize:
+      disable:
+        # Keep the embedded type in struct literals; it reads more clearly.
+        - embedlit
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: var-naming
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      # Tests read fixtures and build requests from variables by design.
+      - path: _test\.go
+        linters:
+          - gosec
+      # Module layers (api, biz, dal, schema) follow one pattern with
+      # self-describing names; doc comments are required elsewhere.
+      - path: ^internal/mods/
+        linters:
+          - revive
+        text: "^exported: "
+    paths:
+      - internal/swagger
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/GoRustC/new-goadmin
+  exclusions:
+    generated: lax
+    paths:
+      - internal/swagger

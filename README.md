@@ -160,7 +160,10 @@ sudo systemctl enable --now ginadmin
 ```
 go test ./...                 # 单元测试与端到端测试（SQLite、内存缓存）
 go test -race ./...           # 同上，开启竞态检测
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...   # 静态检查，规则见 .golangci.yml
 ```
+
+`internal/mods/` 之外的导出标识符必须有文档注释；新模块的 api、biz、dal、schema 层不作要求。
 
 针对真实数据库和 Redis 运行端到端测试：
 
@@ -171,7 +174,7 @@ E2E_REDIS_ADDR=127.0.0.1:6379 \
 go test -count=1 ./test/e2e
 ```
 
-GitHub Actions（`.github/workflows/ci.yml`）会在每次推送和 PR 时运行格式检查、vet、竞态测试、漏洞扫描，以及针对 MySQL、PostgreSQL 和 Redis 的端到端测试。
+GitHub Actions（`.github/workflows/ci.yml`）会在每次推送和 PR 时运行格式检查、vet、golangci-lint、竞态测试、漏洞扫描，以及针对 MySQL、PostgreSQL 和 Redis 的端到端测试。
 
 ## 代码生成
 
@@ -184,7 +187,7 @@ swag init --parseDependency --generalInfo ./main.go --output ./internal/swagger
 ## 目录结构
 
 ```
-cmd/                 命令行入口（start、stop、version）
+cmd/                 命令行入口（start、stop、version、hash-password）
 configs/             配置：dev、prod 样例，菜单定义，Casbin 模型
 deploy/              systemd 服务、环境变量模板、nginx 示例、运维手册
 internal/bootstrap/  启动流程与 HTTP 服务

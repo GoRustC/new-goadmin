@@ -34,6 +34,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Lint
+        # Built from source so it matches the Go version in go.mod; rules are
+        # in .golangci.yml.
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...
+
       - name: Build without cgo
         run: CGO_ENABLED=0 go build ./...
 

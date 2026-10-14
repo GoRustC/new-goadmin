@@ -28,7 +28,7 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	auther, cleanup3, err := InitAuth(ctx)
+	authenticator, cleanup3, err := InitAuth(ctx)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -98,7 +98,7 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 	login := &biz.Login{
 		Config:      config,
 		Cache:       cacher,
-		Auth:        auther,
+		Auth:        authenticator,
 		UserDAL:     user,
 		UserRoleDAL: userRole,
 		MenuDAL:     menu,
@@ -133,7 +133,7 @@ func BuildInjector(ctx context.Context) (*Injector, func(), error) {
 	injector := &Injector{
 		DB:    db,
 		Cache: cacher,
-		Auth:  auther,
+		Auth:  authenticator,
 		M:     modsMods,
 	}
 	return injector, func() {
