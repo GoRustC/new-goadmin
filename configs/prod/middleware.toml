@@ -39,7 +39,9 @@ DB = 2
 # Requires General.HTTP.TrustedProxies to be set when behind a proxy.
 Enable = true
 Period = 10 # seconds
-MaxRequestsPerIP = 300 # per client IP, for requests without a valid token
+# Per client IP, for requests without a valid token: login and captcha calls,
+# and requests answered 401 (counted separately, before the operation log).
+MaxRequestsPerIP = 300
 MaxRequestsPerUser = 600 # per signed-in user
 
 [Middleware.RateLimiter.Store]

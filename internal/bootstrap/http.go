@@ -176,6 +176,18 @@ func useHTTPMiddlewares(_ context.Context, e *gin.Engine, injector *wirex.Inject
 		ResponseTraceKey:    config.C.Middleware.Trace.ResponseTraceKey,
 	}))
 
+	// Before the logger: requests refused here are not written to the
+	// operation log, so a client sending bad tokens cannot flood it.
+	e.Use(middleware.UnauthorizedLimiterWithConfig(middleware.UnauthorizedLimiterConfig{
+		Enable: config.C.Middleware.RateLimiter.Enable,
+		// No skipped paths: the rate limiter's skip list exempts signed-in
+		// routes such as /api/v1/current/, which bad tokens also reach.
+		AllowedPathPrefixes: allowedPrefixes,
+		Period:              time.Second * time.Duration(config.C.Middleware.RateLimiter.Period),
+		MaxFailures:         config.C.Middleware.RateLimiter.MaxRequestsPerIP,
+		Counter:             injector.Cache,
+	}))
+
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		AllowedPathPrefixes: allowedPrefixes,
 		SkippedPathPrefixes: config.C.Middleware.Logger.SkippedPathPrefixes,
