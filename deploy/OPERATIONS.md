@@ -1,6 +1,6 @@
 # 运维手册
 
-本文档面向按 README "生产部署"一节部署的单实例服务：systemd 运行 `/opt/ginadmin/ginadmin`，MySQL 或 PostgreSQL，Redis，前面是 nginx。文中的备份与恢复命令和自动备份单元已在 Ubuntu 26.04、MySQL 8.4、PostgreSQL 18 上实际执行，并按恢复后的行数核对。
+本文档面向按 README "生产部署"一节部署的单实例服务：systemd 运行 `/opt/ginadmin/ginadmin`，MySQL 或 PostgreSQL，Redis，前面是 nginx。文中的备份与恢复命令已在 Ubuntu 26.04、MySQL 8.4、PostgreSQL 18 上实际执行并核对过行数。
 
 ## 1. 备份
 
@@ -37,27 +37,7 @@ PostgreSQL（自定义格式，压缩且支持选择性恢复；密码放在 `~/
 pg_dump -h 127.0.0.1 -U ginadmin -Fc ginadmin > /var/backups/ginadmin/ginadmin-$(date +%F).dump
 ```
 
-### 自动备份
-
-`deploy/` 中的 `ginadmin-backup.sh`、`ginadmin-backup.service`、`ginadmin-backup.timer` 每天 03:00 左右备份一次，保留 14 天。脚本先写临时文件并校验（MySQL 检查 gzip 完整且以 `-- Dump completed` 结尾，PostgreSQL 用 `pg_restore -l` 读取目录），通过后才改名为正式文件；失败时不留下文件，systemd 单元状态为 failed。
-
-```
-sudo install -m 755 deploy/ginadmin-backup.sh /opt/ginadmin/ginadmin-backup.sh
-sudo install -m 644 deploy/ginadmin-backup.service deploy/ginadmin-backup.timer /etc/systemd/system/
-sudo install -d -m 700 /var/backups/ginadmin
-sudo install -m 600 deploy/backup.env.example /etc/ginadmin/backup.env   # 按需修改
-# 凭据：MySQL 用上面的 /root/.ginadmin-my.cnf；PostgreSQL 在 backup.env 中设置 PGHOST、PGUSER，密码写入 /root/.pgpass
-sudo systemctl daemon-reload
-sudo systemctl start ginadmin-backup.service      # 先手动执行一次
-systemctl status ginadmin-backup.service          # 应为 inactive (dead)，Result=success
-ls -l /var/backups/ginadmin
-sudo systemctl enable --now ginadmin-backup.timer
-systemctl list-timers ginadmin-backup.timer       # 查看下次执行时间
-```
-
-- 执行日志：`journalctl -u ginadmin-backup.service`。备份失败应告警，可在监控中检查 `systemctl is-failed ginadmin-backup.service`，或在 service 中加 `OnFailure=` 指向通知服务。
-- **把备份复制到另一台机器或对象存储**：只放在同一台服务器上的备份，在磁盘故障时一起丢失。在 `backup.env` 中设置 `AFTER_BACKUP` 为一个脚本，它以新备份文件的路径为参数，例如用 rsync 或 rclone 上传；脚本失败时整次备份记为失败。
-- 修改 `BACKUP_DIR` 时，同时修改 service 中的 `ReadWritePaths`：服务只允许写这一个目录。
+建议用 cron 或 systemd timer 每天执行一次，保留最近 14 天，并把备份复制到另一台机器或对象存储。只放在同一台服务器上的备份，在磁盘故障时一起丢失。
 
 操作日志表（`logger`）通常占数据库的绝大部分。生产样例保留 90 天（`Dictionary.LoggerRetentionDays`），备份大小随之稳定。
 
