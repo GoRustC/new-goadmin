@@ -75,7 +75,7 @@ dev 配置使用 SQLite 和内存缓存，开箱即用：
 
 ## 生产部署
 
-以下步骤已在 Ubuntu 26.04 上按 `deploy/` 目录的文件实际验证。
+以下步骤已在 Ubuntu 26.04 上按 `deploy/` 目录的文件实际验证。部署之后的备份、恢复、监控、升级和密钥轮换见 [deploy/OPERATIONS.md](deploy/OPERATIONS.md)。
 
 ### 1. 构建
 
@@ -185,7 +185,7 @@ swag init --parseDependency --generalInfo ./main.go --output ./internal/swagger
 ```
 cmd/                 命令行入口（start、stop、version）
 configs/             配置：dev、prod 样例，菜单定义，Casbin 模型
-deploy/              systemd 服务、环境变量模板、nginx 示例
+deploy/              systemd 服务、环境变量模板、nginx 示例、运维手册
 internal/bootstrap/  启动流程与 HTTP 服务
 internal/config/     配置结构、加载、环境变量展开、校验
 internal/mods/rbac/  RBAC 模块：api、biz、dal、schema
