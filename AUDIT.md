@@ -2,7 +2,7 @@
 
 日期：2026-10-13
 范围：安全、配置与部署、代码结构、可扩展性、测试与工程化，外加对第一轮之后全部改动的逐行审查
-环境：Go 1.27.1；测试机 Ubuntu 26.04（VMware），MySQL 8.4、PostgreSQL 18、Redis 8
+环境：Go 1.27.2；测试机 Ubuntu 26.04（VMware），MySQL 8.4、PostgreSQL 18、Redis 8
 第一轮审计的完整清单见 git 历史（提交 540a33c 中的本文件）。
 
 ## 结论
@@ -112,21 +112,40 @@
 
 性能分析显示 CPU 主要消耗在 HTTP 响应与数据库通信的网络系统调用上，业务代码、JSON 编码和权限检查都不是热点。
 
+## 稳定性与代码规范（第六轮）
+
+2026-10-14。每项均在 SQLite、MySQL 8.4 + Redis、PostgreSQL 18 + Redis 上通过端到端测试，并在重装后的测试机上重新按 systemd 部署验证（启动、就绪检查、数据库停机时返回 503、kill -9 后自动重启、停止）。
+
+| 问题 | 处理 | 提交 |
+|---|---|---|
+| 用户名、角色编码、同级菜单编码只在应用层查重：MySQL 上 10 个并发请求创建同名用户，10 个都成功 | 数据库唯一索引；冲突返回 409。已有重复数据时启动失败并提示原因 | 1eed679 |
+| "已存在"类错误返回 400 | 统一返回 409 | 1eed679 |
+| 日志查询只给一个时间边界时被忽略，非法或倒置的时间返回 200 | 两个边界各自生效；非法或倒置返回 400 | 46942af |
+| ORDER BY 字段名拼接字符串，未按数据库加引号 | 改用 gorm 的 `clause.OrderByColumn` | 724fd01 |
+| 响应编码失败会 panic；`ResPage` 传入 nil 时返回 null | 记录日志并返回 500；nil 列表返回 `[]` | 284f54c |
+| 菜单树 N+1：每个菜单查询一次资源，每个匹配菜单查询一次子菜单 | 资源一次 IN 查询；子孙与祖先节点从一次全表读取中在内存里查找 | 424ec13 |
+| 错误用 `==` 比较，包装后会失效；`errors.WithStack` 什么都不做却调用 57 处；`errors.As` 与标准库同名不同签名 | 全部改用 `errors.Is`/`AsType`；删除 `WithStack`、`Parse`、`Equal`、`FromError`、`MultiError`；`As` 改名为 `AsError` | e259430 |
+| 撤销记录无法解析时，token 被当作"未撤销"放行 | 返回错误，请求失败（fail closed） | e259430 |
+| badger 缓存用 unsafe 把字节转成字符串，`Iterator` 交给回调的 key 指向迭代器缓冲区，迭代器复用缓冲区后已保存的 key 会被改写 | 改用普通转换；新增的测试在旧代码上失败 | 421afe0 |
+| SQLite 读写分离的目录按主库 DSN 创建，创建失败被忽略；未知的 resolver 数据库类型被静默跳过 | 按各自 DSN 创建目录（0750），返回错误，拒绝未知类型 | 421afe0 |
+| `pkg/crypto/aes` 固定密钥、IV 等于密钥、无完整性校验、填充错误时 panic | 未被使用，删除；同时删除未使用的 `crypto/rand`、`RandomizedIPAddr`、`SHA1`、toml 序列化 | 421afe0 |
+| 守护进程日志与锁文件权限 0666，日志目录 0777 | 改为 0600 和 0750 | 421afe0 |
+| `NewGormHook` 迁移失败时 panic；配置文件扩展名按子串匹配（`.js` 被当作支持） | 返回错误；精确匹配 | f2bd8d7 |
+| 没有静态检查 | 新增 `.golangci.yml`（errcheck、govet、staticcheck、unused、errorlint、gosec、revive、misspell、modernize 等，外加 gofmt、goimports），代码零告警，并加入 CI | d09a271 |
+| 导出标识符缺少文档注释 | `internal/mods/` 之外全部补齐，每个包有包注释；全部代码改用 `any`、`range n`、`wg.Go`、`strings.SplitSeq` 等写法 | fde3596、f2bd8d7 |
+
+gosec 报告逐条审查：真实问题已修复，其余（运维指定的配置路径、错误 ID 被误判为口令、MD5 仅作为前端传输格式和缓存键）在代码中注明原因后忽略。静态文件中间件经测试确认不会读取根目录之外的文件（`net/http` 拒绝含 `..` 的路径），已加测试防止回归。
+
 ## 仍未处理
 
-**已确定（2026-10-13）**
+**已确定（2026-10-13、10-14）**
 - 暂不与前端联调。
 - 重置他人密码只有 root 可以，已在代码中强制，不依赖 `menu.json`。
 - 每台服务器只部署一个实例；多实例相关问题不再处理。
+- 底座是公开仓库，直接在其中添加模块，不作为库引入：不移出 `internal/`，不做模块框架和依赖注入重构。
 
 **需要决定**
-- 下游采用 fork 还是作为库引入（决定骨架是否移出 `internal/`）。
-
-**运维与结构**
-- 依赖注入只完成一半：`BuildInjector` 不接收配置参数，bootstrap 和 wirex 仍读全局 `config.C`。
-- 新增一个模块需要修改多处共享文件；`http.go` 写死了 rbac 模块。
-- `pkg/errors` 的 `As` 签名与标准库冲突，"已存在"类错误返回 400 而非 409。
-- N+1 查询（菜单树的资源与子菜单加载）。
+- `UserStatusFreezed = "freezed"` 拼写错误，且值已写入数据库。改为 `frozen` 需要迁移已有数据并同步前端；保持不变则只是不规范。
 
 ---
 
@@ -188,5 +207,5 @@
 - `gormx` 同时链接三种数据库驱动，下游无法裁剪。
 - 日志输出到 stderr 而非注释所写的 stdout；启动时打印的多行配置会干扰按行解析的日志采集。
 - `IdleTimeout=10` 小于 nginx upstream keepalive 默认值，可能偶发 502。
-- Go 1.27 现代化：`interface{}` 换 `any`、`err ==` 换 `errors.Is`、`atomic.Int32`、`wg.Go`、`strings.SplitSeq`。
-- `pkg/` 中仍有 0 引用的导出 API（`errors.Parse`、`errors.Equal`、`toml.Marshal`、`crypto/aes` 的固定密钥）。
+- ~~Go 1.27 现代化~~：已在第六轮完成。
+- ~~`pkg/` 中 0 引用的导出 API~~：已在第六轮删除。
