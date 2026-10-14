@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -29,7 +30,7 @@ type RBAC struct {
 }
 
 func (a *RBAC) AutoMigrate(ctx context.Context) error {
-	return a.DB.AutoMigrate(
+	if err := a.DB.AutoMigrate(
 		new(schema.Menu),
 		new(schema.MenuResource),
 		new(schema.Role),
@@ -39,7 +40,36 @@ func (a *RBAC) AutoMigrate(ctx context.Context) error {
 		// The /loggers API reads this table. The database log hook also creates
 		// it, but the API must not fail when that hook is disabled.
 		new(schema.Logger),
-	)
+	); err != nil {
+		return fmt.Errorf("migrate rbac tables (a unique index fails if existing rows contain duplicates): %w", err)
+	}
+	return a.dropLegacyIndexes()
+}
+
+// dropLegacyIndexes removes non-unique indexes that the unique indexes on
+// user.username, role.code and menu(parent_id, code) replace. Databases
+// created before those unique indexes still have them.
+func (a *RBAC) dropLegacyIndexes() error {
+	m := a.DB.Migrator()
+	ns := a.DB.NamingStrategy
+	for _, legacy := range []struct {
+		model  any
+		table  string // struct name, mapped through the naming strategy
+		column string
+	}{
+		{new(schema.User), "User", "username"},
+		{new(schema.Role), "Role", "code"},
+		{new(schema.Menu), "Menu", "code"},
+	} {
+		// The name gorm gave the old "index" tag, including any table prefix.
+		name := ns.IndexName(ns.TableName(legacy.table), legacy.column)
+		if m.HasIndex(legacy.model, name) {
+			if err := m.DropIndex(legacy.model, name); err != nil {
+				return fmt.Errorf("drop legacy index %s: %w", name, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (a *RBAC) Init(ctx context.Context) error {

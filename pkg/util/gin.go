@@ -1,6 +1,7 @@
 package util
 
 import (
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Get access token from header or query parameter
@@ -112,6 +114,11 @@ func ResPage(c *gin.Context, v interface{}, pr *PaginationResult) {
 
 func ResError(c *gin.Context, err error, status ...int) {
 	var ierr *errors.Error
+	if stderrors.Is(err, gorm.ErrDuplicatedKey) {
+		// A unique constraint caught a concurrent duplicate that passed the
+		// application's "already exists" check.
+		err = errors.Conflict("", "Resource already exists")
+	}
 	if e, ok := errors.As(err); ok {
 		// Work on a copy: errors are often package-level values shared by
 		// concurrent requests, such as middleware.ErrCasbinDenied.

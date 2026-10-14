@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -242,7 +243,7 @@ func TestUserManagement(t *testing.T) {
 	// No default password is configured in the production sample.
 	expectStatus(t, "create without password", call(t, http.MethodPost, "/api/v1/users", root, userForm("np"+suffix, "", "activated")), http.StatusBadRequest)
 	expectStatus(t, "reset without default password", call(t, http.MethodPatch, "/api/v1/users/"+userID+"/reset-pwd", root, nil), http.StatusBadRequest)
-	expectStatus(t, "duplicate username", call(t, http.MethodPost, "/api/v1/users", root, userForm(username, "x", "activated")), http.StatusBadRequest)
+	expectStatus(t, "duplicate username", call(t, http.MethodPost, "/api/v1/users", root, userForm(username, "x", "activated")), http.StatusConflict)
 
 	// List, filter and pagination.
 	all := call(t, http.MethodGet, "/api/v1/users?current=1&pageSize=0", root, nil)
@@ -288,7 +289,7 @@ func TestRoleManagement(t *testing.T) {
 
 	expectStatus(t, "duplicate role code", call(t, http.MethodPost, "/api/v1/roles", root, map[string]any{
 		"code": "r" + suffix, "name": "dup", "status": "enabled",
-	}), http.StatusBadRequest)
+	}), http.StatusConflict)
 
 	got := call(t, http.MethodGet, "/api/v1/roles/"+roleID, root, nil)
 	expectStatus(t, "get role", got, http.StatusOK)
@@ -872,4 +873,47 @@ func TestMenuCRUD(t *testing.T) {
 
 	expectStatus(t, "delete menu", call(t, http.MethodDelete, "/api/v1/menus/"+id, root, nil), http.StatusOK)
 	expectStatus(t, "deleted menu is gone", call(t, http.MethodGet, "/api/v1/menus/"+id, root, nil), http.StatusNotFound)
+}
+
+// Concurrent creates of one username used to pass the "already exists" check
+// together and insert duplicates; the unique index now lets exactly one win.
+func TestConcurrentDuplicateCreates(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	s := unique()
+	roleID := createRole(t, root, "dup"+s, menuID(t, "user"))
+
+	const n = 10
+	codes := make(chan int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			codes <- call(t, http.MethodPost, "/api/v1/users", root, userForm("dup"+s, "Pass-1", "activated", roleID)).status
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	created, conflicts := 0, 0
+	for c := range codes {
+		switch c {
+		case http.StatusOK:
+			created++
+		case http.StatusConflict:
+			conflicts++
+		default:
+			t.Errorf("unexpected status %d", c)
+		}
+	}
+	if created != 1 || conflicts != n-1 {
+		t.Fatalf("created=%d conflicts=%d, want 1 and %d", created, conflicts, n-1)
+	}
+	var count int64
+	injector.DB.Model(new(schema.User)).Where("username = ?", "dup"+s).Count(&count)
+	if count != 1 {
+		t.Fatalf("%d users named dup%s in the database, want 1", count, s)
+	}
+	var u schema.User
+	injector.DB.Where("username = ?", "dup"+s).First(&u)
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/users/"+u.ID, root, nil) })
 }

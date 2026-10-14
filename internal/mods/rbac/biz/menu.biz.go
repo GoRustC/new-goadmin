@@ -334,7 +334,7 @@ func (a *Menu) Create(ctx context.Context, formItem *schema.MenuForm) (*schema.M
 	if exists, err := a.MenuDAL.ExistsCodeByParentID(ctx, formItem.Code, formItem.ParentID); err != nil {
 		return nil, err
 	} else if exists {
-		return nil, errors.BadRequest("", "Menu code already exists at the same level")
+		return nil, errors.Conflict("", "Menu code already exists at the same level")
 	}
 
 	if err := formItem.FillTo(menu); err != nil {
@@ -416,7 +416,7 @@ func (a *Menu) Update(ctx context.Context, id string, formItem *schema.MenuForm)
 		if exists, err := a.MenuDAL.ExistsCodeByParentID(ctx, formItem.Code, formItem.ParentID); err != nil {
 			return err
 		} else if exists {
-			return errors.BadRequest("", "Menu code already exists at the same level")
+			return errors.Conflict("", "Menu code already exists at the same level")
 		}
 	}
 

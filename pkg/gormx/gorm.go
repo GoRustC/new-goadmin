@@ -97,6 +97,9 @@ func New(cfg Config) (*gorm.DB, error) {
 		},
 		Logger:      newSQLLogger(cfg),
 		PrepareStmt: cfg.PrepareStmt,
+		// Map driver errors such as unique violations to gorm.ErrDuplicatedKey,
+		// so callers can tell a conflict from a failure on every database.
+		TranslateError: true,
 	}
 
 	db, err := gorm.Open(dialector, ormCfg)

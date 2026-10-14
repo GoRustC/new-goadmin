@@ -76,7 +76,7 @@ func (a *Role) Create(ctx context.Context, formItem *schema.RoleForm) (*schema.R
 	if exists, err := a.RoleDAL.ExistsCode(ctx, formItem.Code); err != nil {
 		return nil, err
 	} else if exists {
-		return nil, errors.BadRequest("", "Role code already exists")
+		return nil, errors.Conflict("", "Role code already exists")
 	}
 
 	role := &schema.Role{
@@ -125,7 +125,7 @@ func (a *Role) Update(ctx context.Context, id string, formItem *schema.RoleForm)
 		if exists, err := a.RoleDAL.ExistsCode(ctx, formItem.Code); err != nil {
 			return err
 		} else if exists {
-			return errors.BadRequest("", "Role code already exists")
+			return errors.Conflict("", "Role code already exists")
 		}
 	}
 

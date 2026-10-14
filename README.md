@@ -46,6 +46,7 @@
 - 登录锁定返回 429（`com.login.locked`），越权的管理操作返回 403（`com.rbac.privilege-escalation`）。
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
 - 只有 root 能重置他人密码或在编辑用户时设置新密码，其他管理员返回 403（`com.rbac.root-only`）。
+- 用户名、角色编码、同一父菜单下的菜单编码在数据库中唯一；重复时返回 409（原为 400）。已有数据若存在重复，升级后首次启动会报错退出，需先清理重复行。
 - 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
 - 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、Casbin 的 `AutoLoadInterval` 和 `LoadThread`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
 

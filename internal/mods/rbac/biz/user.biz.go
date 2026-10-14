@@ -95,7 +95,7 @@ func (a *User) Create(ctx context.Context, formItem *schema.UserForm) (*schema.U
 	if err != nil {
 		return nil, err
 	} else if existsUsername {
-		return nil, errors.BadRequest("", "Username already exists")
+		return nil, errors.Conflict("", "Username already exists")
 	}
 
 	user := &schema.User{
@@ -162,7 +162,7 @@ func (a *User) Update(ctx context.Context, id string, formItem *schema.UserForm)
 		if err != nil {
 			return err
 		} else if existsUsername {
-			return errors.BadRequest("", "Username already exists")
+			return errors.Conflict("", "Username already exists")
 		}
 	}
 
