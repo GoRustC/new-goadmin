@@ -70,13 +70,19 @@ func ParseForm(c *gin.Context, obj interface{}) error {
 }
 
 // Response json data with status code
+// internalErrorBody is sent when a response cannot be encoded.
+var internalErrorBody = []byte(`{"success":false,"error":{"id":"internal_server_error","code":500,"detail":"Internal Server Error","status":"Internal Server Error"}}`)
+
 func ResJSON(c *gin.Context, status int, v interface{}) {
 	buf, err := json.Marshal(v)
 	if err != nil {
-		panic(err)
+		// A value that cannot be encoded is a programming error: log which
+		// request hit it and answer a plain 500 instead of panicking.
+		logging.Context(c.Request.Context()).Error("Failed to encode response",
+			zap.Error(err), zap.String("path", c.Request.URL.Path))
+		status, buf = http.StatusInternalServerError, internalErrorBody
 	}
 
-	c.Set(ResBodyKey, buf)
 	c.Data(status, "application/json; charset=utf-8", buf)
 	c.Abort()
 }
@@ -100,8 +106,8 @@ func ResPage(c *gin.Context, v interface{}, pr *PaginationResult) {
 		total = pr.Total
 	}
 
-	reflectValue := reflect.Indirect(reflect.ValueOf(v))
-	if reflectValue.IsNil() {
+	// Render a missing list as [] rather than null.
+	if isNilValue(v) {
 		v = make([]interface{}, 0)
 	}
 
@@ -143,4 +149,24 @@ func ResError(c *gin.Context, err error, status ...int) {
 
 	ierr.Code = int32(code)
 	ResJSON(c, code, ResponseResult{Error: ierr})
+}
+
+// isNilValue reports whether v is nil or a nil pointer, slice, map or
+// interface. reflect.Value.IsNil panics for other kinds, so check first.
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface {
+		if rv.IsNil() {
+			return true
+		}
+		rv = rv.Elem()
+	}
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Map:
+		return rv.IsNil()
+	}
+	return false
 }

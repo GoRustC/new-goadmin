@@ -7,7 +7,6 @@ import (
 
 const (
 	ReqBodyKey        = "req-body"
-	ResBodyKey        = "res-body"
 	TreePathDelimiter = "."
 )
 
