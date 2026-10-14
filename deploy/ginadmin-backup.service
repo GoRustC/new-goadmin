@@ -1,0 +1,20 @@
+# Backs up the ginadmin database once; started daily by ginadmin-backup.timer.
+# Install: see deploy/OPERATIONS.md section 1.
+[Unit]
+Description=Back up the ginadmin database
+After=network-online.target mysql.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# root, to read the credentials in /root/.ginadmin-my.cnf or /root/.pgpass.
+User=root
+ExecStart=/opt/ginadmin/ginadmin-backup.sh
+# Stay out of the way of the service.
+Nice=10
+IOSchedulingClass=idle
+# Hardening: only the backup directory is writable.
+ProtectSystem=strict
+ReadWritePaths=/var/backups/ginadmin
+PrivateTmp=true
+NoNewPrivileges=true

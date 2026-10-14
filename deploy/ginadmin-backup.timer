@@ -1,0 +1,12 @@
+# Runs ginadmin-backup.service every day at about 03:00.
+[Unit]
+Description=Daily backup of the ginadmin database
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=15min
+# Run at the next boot if the machine was off at the scheduled time.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
