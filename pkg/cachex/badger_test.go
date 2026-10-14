@@ -13,7 +13,7 @@ func TestBadgerCache(t *testing.T) {
 	assert := assert.New(t)
 
 	cache := NewBadgerCache(BadgerConfig{
-		Path: "./tmp/badger",
+		Path: t.TempDir(),
 	})
 
 	ctx := context.Background()

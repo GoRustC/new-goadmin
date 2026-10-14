@@ -823,3 +823,53 @@ func TestMenuResourceInjectionIsRejected(t *testing.T) {
 	expectStatus(t, "legitimate grant still works", call(t, http.MethodGet, "/api/v1/users", token, nil), http.StatusOK)
 	expectStatus(t, "injected rule has no effect", call(t, http.MethodGet, "/api/v1/loggers", token, nil), http.StatusForbidden)
 }
+
+// Menu create, read, update, list and delete, with menu writes enabled.
+func TestMenuCRUD(t *testing.T) {
+	root := mustLogin(t, "admin", rootPassword)
+	withMenuWrites(t)
+	s := unique()
+
+	form := map[string]any{
+		"code": "crud" + s, "name": "Menu management", "description": "Menu management",
+		"sequence": 9, "type": "page", "path": "/system/crud" + s, "properties": `{"icon":"menu"}`,
+		"status":    "enabled",
+		"resources": []map[string]string{{"method": "GET", "path": "/api/v1/crud" + s}},
+	}
+	created := call(t, http.MethodPost, "/api/v1/menus", root, form)
+	expectStatus(t, "create menu", created, http.StatusOK)
+	id := dataField(t, created, "id")
+	t.Cleanup(func() { call(t, http.MethodDelete, "/api/v1/menus/"+id, root, nil) })
+
+	var menu map[string]any
+	_ = json.Unmarshal(created.Data, &menu)
+	for _, k := range []string{"code", "name", "description", "type", "path", "properties", "status"} {
+		if fmt.Sprint(menu[k]) != fmt.Sprint(form[k]) {
+			t.Errorf("created menu %s = %v, want %v", k, menu[k], form[k])
+		}
+	}
+	if fmt.Sprint(menu["sequence"]) != "9" {
+		t.Errorf("created menu sequence = %v, want 9", menu["sequence"])
+	}
+
+	found := false
+	for _, m := range list(t, call(t, http.MethodGet, "/api/v1/menus", root, nil)) {
+		if m["id"] == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("created menu missing from the list")
+	}
+
+	form["name"], form["status"] = "Menu management 1", "disabled"
+	expectStatus(t, "update menu", call(t, http.MethodPut, "/api/v1/menus/"+id, root, form), http.StatusOK)
+	got := call(t, http.MethodGet, "/api/v1/menus/"+id, root, nil)
+	expectStatus(t, "get menu", got, http.StatusOK)
+	if dataField(t, got, "name") != "Menu management 1" || dataField(t, got, "status") != "disabled" {
+		t.Fatalf("update not applied: %s", got.Data)
+	}
+
+	expectStatus(t, "delete menu", call(t, http.MethodDelete, "/api/v1/menus/"+id, root, nil), http.StatusOK)
+	expectStatus(t, "deleted menu is gone", call(t, http.MethodGet, "/api/v1/menus/"+id, root, nil), http.StatusNotFound)
+}
