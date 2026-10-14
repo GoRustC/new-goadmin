@@ -113,6 +113,7 @@ sudo chmod 600 /etc/ginadmin/ginadmin.env
 | `GINADMIN_HTTP_ADDR` | 否 | 监听地址，默认 `:8040`；放在 nginx 后面时建议 `127.0.0.1:8040` |
 | `GINADMIN_REDIS_USERNAME`、`GINADMIN_REDIS_PASSWORD` | 否 | Redis 认证 |
 | `GINADMIN_DEFAULT_LOGIN_PWD` | 否 | 新建用户未填密码和重置密码时使用的密码（MD5）；为空则这两项功能不可用 |
+| `GINADMIN_METRICS_ADDR` | 否 | Prometheus 指标地址，默认 `127.0.0.1:8041`（`/metrics`）；为空则关闭。不要暴露到公网 |
 
 配置文件中任意字符串值都可以写成 `${NAME}` 或 `${NAME:-默认值}` 来引用环境变量。
 

@@ -5,7 +5,8 @@
 #
 #   Required:  GINADMIN_DB_DSN, GINADMIN_REDIS_ADDR, GINADMIN_JWT_KEY, GINADMIN_ROOT_PASSWORD
 #   Optional:  GINADMIN_HTTP_ADDR (default :8040), GINADMIN_DB_TYPE (default mysql),
-#              GINADMIN_REDIS_USERNAME, GINADMIN_REDIS_PASSWORD, GINADMIN_DEFAULT_LOGIN_PWD
+#              GINADMIN_REDIS_USERNAME, GINADMIN_REDIS_PASSWORD, GINADMIN_DEFAULT_LOGIN_PWD,
+#              GINADMIN_METRICS_ADDR (default 127.0.0.1:8041)
 #
 # Start with: ginadmin start -d configs -c prod
 
@@ -14,6 +15,10 @@ AppName = "ginadmin"
 Version = "v10.1.0"
 Debug = false
 PprofAddr = "" # Keep empty, or bind to localhost only, e.g. "localhost:6060"
+# Prometheus metrics at http://<addr>/metrics. Keep it off the public network;
+# set GINADMIN_METRICS_ADDR to a private address if Prometheus runs elsewhere,
+# or to "" to disable.
+MetricsAddr = "${GINADMIN_METRICS_ADDR:-127.0.0.1:8041}"
 DisableSwagger = true
 DisablePrintConfig = true # Multi-line output confuses line-based log collectors; secrets are masked if enabled
 # Password (MD5 hash, as sent by the frontend) for new users created without one and

@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -90,6 +91,25 @@ type Hook struct {
 	e      HookExecuter
 	mu     sync.RWMutex // guards closed against close(q)
 	closed bool
+
+	dropped atomic.Uint64 // entries discarded because the queue was full
+	failed  atomic.Uint64 // entries the executer failed to write
+}
+
+// Queued returns the number of entries waiting to be written.
+func (h *Hook) Queued() int {
+	return len(h.q)
+}
+
+// Dropped returns the number of entries discarded because the queue was
+// full.
+func (h *Hook) Dropped() uint64 {
+	return h.dropped.Load()
+}
+
+// Failed returns the number of entries the executer failed to write.
+func (h *Hook) Failed() uint64 {
+	return h.failed.Load()
 }
 
 // hookFlushTimeout bounds how long Flush waits for queued entries, so a
@@ -110,6 +130,7 @@ func (h *Hook) dispatch() {
 			for data := range h.q {
 				if !canBatch {
 					if err := h.e.Exec(h.opts.extra, data); err != nil {
+						h.failed.Add(1)
 						fmt.Println("Failed to write entry:", err.Error())
 					}
 					continue
@@ -129,6 +150,7 @@ func (h *Hook) dispatch() {
 					}
 				}
 				if err := batcher.ExecBatch(h.opts.extra, batch); err != nil {
+					h.failed.Add(uint64(len(batch)))
 					fmt.Printf("Failed to write %d entries: %s\n", len(batch), err.Error())
 				}
 			}
@@ -150,7 +172,11 @@ func (h *Hook) Write(p []byte) (int, error) {
 	select {
 	case h.q <- data:
 	default:
-		fmt.Println("Logger hook queue is full, entry discarded")
+		// Report the first drop and then every 1000th, rather than flooding
+		// stderr while overloaded. Dropped returns the exact count.
+		if n := h.dropped.Add(1); n == 1 || n%1000 == 0 {
+			fmt.Printf("Logger hook queue is full, %d entries discarded so far\n", n)
+		}
 	}
 	return len(p), nil
 }

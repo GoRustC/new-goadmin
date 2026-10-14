@@ -23,10 +23,14 @@ type Config struct {
 
 // General holds application-wide settings.
 type General struct {
-	AppName            string `default:"ginadmin"`
-	Version            string `default:"v10.1.0"`
-	Debug              bool
-	PprofAddr          string
+	AppName   string `default:"ginadmin"`
+	Version   string `default:"v10.1.0"`
+	Debug     bool
+	PprofAddr string
+	// MetricsAddr serves Prometheus metrics at /metrics on its own listener;
+	// empty disables them. They reveal routes and load, so keep it on
+	// loopback or a private network.
+	MetricsAddr        string
 	DisableSwagger     bool `default:"true"`
 	DisablePrintConfig bool
 	DefaultLoginPwd    string // Password (MD5 hash, as sent by the frontend) for new users without one and for resets; empty disables both

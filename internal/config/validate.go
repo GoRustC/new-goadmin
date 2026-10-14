@@ -82,6 +82,12 @@ func (c *Config) Validate() error {
 			"Middleware.Auth.OldSigningKey must be at least %d bytes, like SigningKey", minSigningKeyLen)
 	}
 
+	if addr := c.General.MetricsAddr; addr != "" {
+		_, port, err := net.SplitHostPort(addr)
+		check(err == nil && port != "", "General.MetricsAddr must be host:port, e.g. 127.0.0.1:8041; got %q", addr)
+		check(addr != c.General.HTTP.Addr, "General.MetricsAddr must differ from General.HTTP.Addr")
+	}
+
 	// Development conveniences are refused outside debug mode.
 	if !c.IsDebug() {
 		check(c.General.Root.Password != knownDefaultPassword,

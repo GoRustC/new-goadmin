@@ -92,6 +92,38 @@ pg_restore -h 127.0.0.1 -U ginadmin -d ginadmin_restore --no-owner ginadmin-2026
 
 `/health/ready` 在数据库或 Redis 不可用时返回 503，而 `/health` 仍返回 200。外部监控应检查前者。
 
+### Prometheus 指标
+
+生产配置默认在 `127.0.0.1:8041/metrics` 提供指标（`GINADMIN_METRICS_ADDR`，设为空则关闭）。该端口只应让 Prometheus 访问：Prometheus 在同一台机器时保持默认；在其他机器时改为内网地址并用防火墙限制来源，不要经 nginx 暴露到公网。
+
+| 指标 | 含义 | 建议告警 |
+|---|---|---|
+| `ginadmin_http_requests_total{method,route,code}` | 请求数，`route` 为路由模板（如 `/api/v1/users/:id`），未匹配的路径记为 `unmatched` | 5 分钟内 5xx 占比超过 1% |
+| `ginadmin_http_request_duration_seconds` | 请求耗时直方图 | p95 持续超过 0.5 秒 |
+| `ginadmin_http_requests_in_flight` | 正在处理的请求数 | 持续接近连接池上限 |
+| `go_sql_wait_count_total`、`go_sql_in_use_connections`、`go_sql_max_open_connections`（`db_name="main"`） | 数据库连接池 | 等待次数持续增长，说明连接池不够 |
+| `ginadmin_log_hook_dropped_entries_total`、`ginadmin_log_hook_failed_entries_total` | 操作日志因队列满被丢弃、写入失败的条数 | 大于 0 即通知：审计日志有缺失 |
+| `ginadmin_log_hook_queued_entries` | 等待写入的操作日志 | 持续接近队列上限（`MaxBuffer`） |
+| `go_*`、`process_*` | Go 运行时与进程：goroutine、内存、GC、CPU、文件描述符 | goroutine 或内存持续增长 |
+
+Prometheus 抓取配置示例：
+
+```
+scrape_configs:
+  - job_name: ginadmin
+    static_configs:
+      - targets: ["127.0.0.1:8041"]
+```
+
+PromQL 示例：
+
+```
+# 5xx 占比
+sum(rate(ginadmin_http_requests_total{code=~"5.."}[5m])) / sum(rate(ginadmin_http_requests_total[5m]))
+# 各接口 p95 耗时
+histogram_quantile(0.95, sum by (le, route) (rate(ginadmin_http_request_duration_seconds_bucket[5m])))
+```
+
 服务崩溃时 systemd 会在 5 秒后自动重启（`Restart=on-failure`）。若希望重启时收到通知，可在 unit 中加 `OnFailure=` 指向一个发送通知的服务。
 
 ## 4. 升级与回滚

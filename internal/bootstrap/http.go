@@ -11,6 +11,7 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -23,8 +24,8 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
-func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), error) {
-	e, err := NewHTTPHandler(ctx, injector)
+func startHTTPServer(ctx context.Context, injector *wirex.Injector, reg *prometheus.Registry) (func(), error) {
+	e, err := NewHTTPHandler(ctx, injector, reg)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +84,9 @@ func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), err
 
 // NewHTTPHandler builds the gin engine with every middleware and route the
 // server uses, without listening on a port. Tests use it to exercise the
-// real request pipeline.
-func NewHTTPHandler(ctx context.Context, injector *wirex.Injector) (*gin.Engine, error) {
+// real request pipeline. Request metrics are registered with reg; nil
+// disables them.
+func NewHTTPHandler(ctx context.Context, injector *wirex.Injector, reg *prometheus.Registry) (*gin.Engine, error) {
 	if config.C.IsDebug() {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -92,6 +94,10 @@ func NewHTTPHandler(ctx context.Context, injector *wirex.Injector) (*gin.Engine,
 	}
 
 	e := gin.New()
+	// First, so every request is counted, including rejected ones.
+	if reg != nil {
+		e.Use(middleware.Metrics(reg, metricsNamespace))
+	}
 	// gin trusts X-Forwarded-For from every address by default, which lets
 	// clients spoof their IP and bypass per-IP rate limiting.
 	if err := e.SetTrustedProxies(config.C.General.HTTP.TrustedProxies); err != nil {

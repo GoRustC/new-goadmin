@@ -29,6 +29,7 @@ import (
 
 	"github.com/LyricTian/captcha"
 	"github.com/LyricTian/captcha/store"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/GoRustC/new-goadmin/internal/bootstrap"
 	"github.com/GoRustC/new-goadmin/internal/config"
@@ -48,6 +49,8 @@ var (
 	server    *httptest.Server
 	injector  *wirex.Injector
 	captchas  *recordingStore
+	// metricsRegistry receives the request metrics of the handler under test.
+	metricsRegistry = prometheus.NewRegistry()
 )
 
 // recordingStore keeps a copy of each captcha's digits so the test can answer
@@ -133,7 +136,7 @@ func TestMain(m *testing.M) {
 	}
 	captchas = &recordingStore{Store: inner, digits: map[string]string{}}
 	captcha.SetCustomStore(captchas)
-	handler, err := bootstrap.NewHTTPHandler(ctx, inj)
+	handler, err := bootstrap.NewHTTPHandler(ctx, inj, metricsRegistry)
 	if err != nil {
 		panic(err)
 	}

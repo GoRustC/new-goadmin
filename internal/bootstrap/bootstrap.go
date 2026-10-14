@@ -5,6 +5,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/GoRustC/new-goadmin/internal/config"
@@ -52,8 +54,16 @@ func Run(ctx context.Context, runCfg RunConfig) (err error) {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	// Initialize logger.
-	cleanLoggerFn, err := logging.InitWithConfig(ctx, &config.C.Logger, initLoggerHook)
+	// Initialize logger, keeping the hooks so their queues can be monitored.
+	var logHooks []*logging.Hook
+	cleanLoggerFn, err := logging.InitWithConfig(ctx, &config.C.Logger,
+		func(ctx context.Context, cfg *logging.HookConfig) (*logging.Hook, error) {
+			h, err := initLoggerHook(ctx, cfg)
+			if h != nil {
+				logHooks = append(logHooks, h)
+			}
+			return h, err
+		})
 	if err != nil {
 		return err
 	}
@@ -110,12 +120,31 @@ func Run(ctx context.Context, runCfg RunConfig) (err error) {
 		return err
 	}
 
+	var reg *prometheus.Registry
+	if config.C.General.MetricsAddr != "" {
+		reg = newMetricsRegistry()
+		if err := errors.Join(registerDBMetrics(reg, injector.DB), registerLogHookMetrics(reg, logHooks)); err != nil {
+			_ = injector.M.Release(ctx)
+			cleanInjectorFn()
+			return fmt.Errorf("register metrics: %w", err)
+		}
+	}
+
 	return util.Run(ctx, func(ctx context.Context) (func(), error) {
-		cleanHTTPServerFn, err := startHTTPServer(ctx, injector)
+		cleanHTTPServerFn, err := startHTTPServer(ctx, injector, reg)
 		if err != nil {
 			_ = injector.M.Release(ctx)
 			cleanInjectorFn()
 			return nil, err
+		}
+		var cleanMetricsServerFn func()
+		if reg != nil {
+			if cleanMetricsServerFn, err = startMetricsServer(ctx, config.C.General.MetricsAddr, reg); err != nil {
+				cleanHTTPServerFn()
+				_ = injector.M.Release(ctx)
+				cleanInjectorFn()
+				return nil, err
+			}
 		}
 
 		return func() {
@@ -125,6 +154,9 @@ func Run(ctx context.Context, runCfg RunConfig) (err error) {
 
 			if cleanHTTPServerFn != nil {
 				cleanHTTPServerFn()
+			}
+			if cleanMetricsServerFn != nil {
+				cleanMetricsServerFn()
 			}
 			if cleanInjectorFn != nil {
 				cleanInjectorFn()

@@ -3,6 +3,7 @@ AppName = "ginadmin"
 Version = "v10.1.0"
 Debug = true
 PprofAddr = "" # Pprof monitor address, "localhost:6060"
+MetricsAddr = "" # Prometheus metrics address, e.g. "127.0.0.1:8041"
 DisableSwagger = false
 DisablePrintConfig = false
 # Password for new users created without one and for password resets; empty disables both.
