@@ -168,18 +168,12 @@ func TestValidateAllowsKnownPasswordsInDebug(t *testing.T) {
 
 func TestStringRedactsSecrets(t *testing.T) {
 	c := newDefaultConfig(t)
-	secrets := []string{"root-secret", "default-secret", "redis-secret", "signing-secret", "user:pass@tcp(db)/app", "replica-dsn"}
+	secrets := []string{"root-secret", "default-secret", "redis-secret", "signing-secret", "user:pass@tcp(db)/app"}
 	c.General.Root.Password = secrets[0]
 	c.General.DefaultLoginPwd = secrets[1]
 	c.Storage.Cache.Redis.Password = secrets[2]
 	c.Middleware.Auth.SigningKey = secrets[3]
 	c.Storage.DB.DSN = secrets[4]
-	c.Storage.DB.Resolver = append(c.Storage.DB.Resolver, struct {
-		DBType   string
-		Sources  []string
-		Replicas []string
-		Tables   []string
-	}{DBType: "mysql", Replicas: []string{secrets[5]}})
 
 	out := c.String()
 	for _, s := range secrets {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/casbin/casbin/v2"
@@ -148,15 +147,7 @@ func NewHTTPHandler(ctx context.Context, injector *wirex.Injector, reg *promethe
 
 	// Register swagger
 	if !config.C.General.DisableSwagger {
-		e.StaticFile("/openapi.json", filepath.Join(config.C.General.WorkDir, "openapi.json"))
 		e.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	}
-
-	if dir := config.C.Middleware.Static.Dir; dir != "" {
-		e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
-			Root:                dir,
-			SkippedPathPrefixes: allowedPrefixes,
-		}))
 	}
 
 	return e, nil

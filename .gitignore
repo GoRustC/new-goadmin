@@ -14,15 +14,11 @@
 *.DS_Store
 /ginadmin
 /ginadmin_linux_amd64
-/ginadmin.lock
-/ginadmin.log
 /dist
 /release
 /data
 tmp
 /vendor
-/internal/swagger/v3/.openapi-generator
-/internal/swagger/v3/.openapi-generator-ignore
 
 # IDE configs
 .idea

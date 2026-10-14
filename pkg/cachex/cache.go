@@ -1,3 +1,4 @@
+// Package cachex provides a key-value cache with memory and Redis backends.
 package cachex
 
 import (

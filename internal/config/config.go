@@ -69,7 +69,7 @@ type General struct {
 // Storage configures the cache and the database.
 type Storage struct {
 	Cache struct {
-		Type      string `default:"memory"` // memory/badger/redis
+		Type      string `default:"memory"` // memory/redis
 		Delimiter string `default:":"`      // delimiter for key
 		// Prepended to every key this application writes to the cache, the
 		// token store, the rate limiter and the captcha store, so several
@@ -77,9 +77,6 @@ type Storage struct {
 		KeyPrefix string
 		Memory    struct {
 			CleanupInterval int `default:"60"` // seconds
-		}
-		Badger struct {
-			Path string `default:"data/cache"`
 		}
 		Redis struct {
 			Addr     string
@@ -99,12 +96,6 @@ type Storage struct {
 		TablePrefix  string `default:""`
 		AutoMigrate  bool
 		PrepareStmt  bool
-		Resolver     []struct {
-			DBType   string   // sqlite3/mysql/postgres
-			Sources  []string // DSN
-			Replicas []string // DSN
-			Tables   []string
-		}
 	}
 }
 
@@ -162,8 +153,8 @@ func (c *Config) String() string {
 const redactedValue = "******"
 
 // Lowercased substrings of config keys whose values must never be printed.
-// DSN, Sources and Replicas are connection strings that embed credentials.
-var sensitiveKeyParts = []string{"password", "pwd", "secret", "signingkey", "dsn", "sources", "replicas"}
+// DSN is a connection string that embeds credentials.
+var sensitiveKeyParts = []string{"password", "pwd", "secret", "signingkey", "dsn"}
 
 func isSensitiveKey(key string) bool {
 	k := strings.ToLower(key)

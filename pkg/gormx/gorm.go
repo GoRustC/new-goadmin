@@ -1,5 +1,5 @@
 // Package gormx opens gorm databases (MySQL, PostgreSQL, SQLite) with
-// connection pooling, read replicas and SQL logging through zap.
+// connection pooling and SQL logging through zap.
 package gormx
 
 import (
@@ -18,16 +18,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
-	"gorm.io/plugin/dbresolver"
 )
-
-// ResolverConfig routes Tables to read replicas and extra sources.
-type ResolverConfig struct {
-	DBType   string // mysql/postgres/sqlite3
-	Sources  []string
-	Replicas []string
-	Tables   []string
-}
 
 // Config configures New. MaxLifetime and MaxIdleTime are in seconds.
 type Config struct {
@@ -40,7 +31,6 @@ type Config struct {
 	MaxOpenConns int
 	MaxIdleConns int
 	TablePrefix  string
-	Resolver     []ResolverConfig
 	// SlowThreshold logs queries slower than this as warnings; 0 uses 200ms.
 	SlowThreshold time.Duration
 	// DisableSQLLog turns off SQL logging. Set it for a connection used by a
@@ -125,54 +115,6 @@ func New(cfg Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if len(cfg.Resolver) > 0 {
-		resolver := &dbresolver.DBResolver{}
-		for _, r := range cfg.Resolver {
-			resolverCfg := dbresolver.Config{}
-			var open func(dsn string) gorm.Dialector
-			dbType := strings.ToLower(r.DBType)
-			switch dbType {
-			case "mysql":
-				open = mysql.Open
-			case "postgres":
-				open = postgres.Open
-			case "sqlite3":
-				open = func(dsn string) gorm.Dialector { return sqlite.Open(sqliteDSN(dsn)) }
-			default:
-				return nil, fmt.Errorf("unsupported resolver database type: %s", r.DBType)
-			}
-
-			for _, replica := range r.Replicas {
-				if dbType == "sqlite3" {
-					if err := ensureSQLiteDir(replica); err != nil {
-						return nil, err
-					}
-				}
-				resolverCfg.Replicas = append(resolverCfg.Replicas, open(replica))
-			}
-			for _, source := range r.Sources {
-				if dbType == "sqlite3" {
-					if err := ensureSQLiteDir(source); err != nil {
-						return nil, err
-					}
-				}
-				resolverCfg.Sources = append(resolverCfg.Sources, open(source))
-			}
-			tables := stringSliceToInterfaceSlice(r.Tables)
-			resolver.Register(resolverCfg, tables...)
-			zap.L().Info(fmt.Sprintf("Use resolver, #tables: %v, #replicas: %v, #sources: %v \n",
-				tables, r.Replicas, r.Sources))
-		}
-
-		resolver.SetMaxIdleConns(cfg.MaxIdleConns).
-			SetMaxOpenConns(cfg.MaxOpenConns).
-			SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second).
-			SetConnMaxIdleTime(time.Duration(cfg.MaxIdleTime) * time.Second)
-		if err := db.Use(resolver); err != nil {
-			return nil, err
-		}
-	}
-
 	if cfg.Debug {
 		db = db.Debug()
 	}
@@ -220,14 +162,6 @@ func sqliteDSN(dsn string) string {
 		sep = "&"
 	}
 	return dsn + sep + strings.Join(params, "&")
-}
-
-func stringSliceToInterfaceSlice(s []string) []any {
-	r := make([]any, len(s))
-	for i, v := range s {
-		r[i] = v
-	}
-	return r
 }
 
 func createDatabaseWithMySQL(dsn string) error {

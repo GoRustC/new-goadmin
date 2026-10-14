@@ -16,7 +16,6 @@ func backends(t *testing.T) map[string]Cacher {
 	prefix := WithKeyPrefix("atomic-test:" + time.Now().Format("150405.000000") + ":")
 	m := map[string]Cacher{
 		"memory": NewMemoryCache(MemoryConfig{CleanupInterval: time.Minute}, prefix),
-		"badger": NewBadgerCache(BadgerConfig{Path: t.TempDir()}, prefix),
 	}
 	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
 		m["redis"] = NewRedisCache(RedisConfig{Addr: addr, DB: 1}, prefix)

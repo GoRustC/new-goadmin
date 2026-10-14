@@ -26,9 +26,8 @@ import (
 
 // RunConfig defines the config for run command.
 type RunConfig struct {
-	WorkDir   string // Working directory
-	Configs   string // Directory or files (multiple separated by commas)
-	StaticDir string // Static files directory
+	WorkDir string // Working directory
+	Configs string // Directory or files (multiple separated by commas)
 }
 
 // Run loads the configuration, initializes logging and the dependencies, and
@@ -42,12 +41,10 @@ func Run(ctx context.Context, runCfg RunConfig) (err error) {
 
 	// Load configuration.
 	workDir := runCfg.WorkDir
-	staticDir := runCfg.StaticDir
 	if err := config.Load(workDir, strings.Split(runCfg.Configs, ",")...); err != nil {
 		return err
 	}
 	config.C.General.WorkDir = workDir
-	config.C.Middleware.Static.Dir = staticDir
 	config.C.Print()
 	config.C.PreLoad()
 	if err := config.C.Validate(); err != nil {
@@ -82,7 +79,6 @@ func Run(ctx context.Context, runCfg RunConfig) (err error) {
 		zap.Int("pid", os.Getpid()),
 		zap.String("workdir", workDir),
 		zap.String("config", runCfg.Configs),
-		zap.String("static", staticDir),
 	)
 
 	// Start pprof server on a private mux so its handlers are only reachable

@@ -34,14 +34,11 @@ OldSigningKey = "" # Old secret key (For change secret key)
 Expired = 86400 # seconds
 
 [Middleware.Auth.Store]
-Type = "badger" # memory/badger/redis
+Type = "memory" # memory/redis
 Delimiter = ":"
 
 [Middleware.Auth.Store.Memory]
 CleanupInterval = 60 # seconds
-
-[Middleware.Auth.Store.Badger]
-Path = "data/auth"
 
 [Middleware.Auth.Store.Redis]
 Addr = "" # If empty, then use the same configuration as Storage.Cache.Redis

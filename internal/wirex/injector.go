@@ -77,16 +77,6 @@ type Injector struct {
 func InitDB(ctx context.Context) (*gorm.DB, func(), error) {
 	cfg := config.C.Storage.DB
 
-	resolver := make([]gormx.ResolverConfig, len(cfg.Resolver))
-	for i, v := range cfg.Resolver {
-		resolver[i] = gormx.ResolverConfig{
-			DBType:   v.DBType,
-			Sources:  v.Sources,
-			Replicas: v.Replicas,
-			Tables:   v.Tables,
-		}
-	}
-
 	db, err := gormx.New(gormx.Config{
 		Debug:        cfg.Debug,
 		PrepareStmt:  cfg.PrepareStmt,
@@ -97,7 +87,6 @@ func InitDB(ctx context.Context) (*gorm.DB, func(), error) {
 		MaxOpenConns: cfg.MaxOpenConns,
 		MaxIdleConns: cfg.MaxIdleConns,
 		TablePrefix:  cfg.TablePrefix,
-		Resolver:     resolver,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -124,10 +113,6 @@ func InitCacher(ctx context.Context) (cachex.Cacher, func(), error) {
 			DB:       cfg.Redis.DB,
 			Username: cfg.Redis.Username,
 			Password: cfg.Redis.Password,
-		}, cachex.WithDelimiter(cfg.Delimiter), cachex.WithKeyPrefix(cfg.KeyPrefix))
-	case "badger":
-		cache = cachex.NewBadgerCache(cachex.BadgerConfig{
-			Path: cfg.Badger.Path,
 		}, cachex.WithDelimiter(cfg.Delimiter), cachex.WithKeyPrefix(cfg.KeyPrefix))
 	default:
 		cache = cachex.NewMemoryCache(cachex.MemoryConfig{
@@ -172,10 +157,6 @@ func InitAuth(ctx context.Context) (jwtx.Authenticator, func(), error) {
 			DB:       cfg.Store.Redis.DB,
 			Username: cfg.Store.Redis.Username,
 			Password: cfg.Store.Redis.Password,
-		}, cachex.WithDelimiter(cfg.Store.Delimiter), cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))
-	case "badger":
-		cache = cachex.NewBadgerCache(cachex.BadgerConfig{
-			Path: cfg.Store.Badger.Path,
 		}, cachex.WithDelimiter(cfg.Store.Delimiter), cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))
 	default:
 		cache = cachex.NewMemoryCache(cachex.MemoryConfig{

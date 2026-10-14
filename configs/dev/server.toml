@@ -9,7 +9,7 @@ DisablePrintConfig = false
 # Password for new users created without one and for password resets; empty disables both.
 # MD5("abc-123") is accepted in debug mode only.
 DefaultLoginPwd = "6351623c8cef86fefabfa7da046fc619"
-MenuFile = "menu.json" # Or use "menu_cn.json"
+MenuFile = "menu.json"
 DenyOperateMenu = true
 
 [General.HTTP]
@@ -38,14 +38,11 @@ Name = "Admin"
 [Storage]
 
 [Storage.Cache]
-Type = "memory" # memory/badger/redis
+Type = "memory" # memory/redis
 Delimiter = ":"
 
 [Storage.Cache.Memory]
 CleanupInterval = 60
-
-[Storage.Cache.Badger]
-Path = "data/cache"
 
 [Storage.Cache.Redis]
 Addr = "127.0.0.1:6379"

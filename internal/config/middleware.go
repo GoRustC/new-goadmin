@@ -42,13 +42,10 @@ type Middleware struct {
 		// refreshes. 0 means no limit.
 		MaxSessionHours int `default:"168"`
 		Store           struct {
-			Type      string `default:"memory"` // memory/badger/redis
+			Type      string `default:"memory"` // memory/redis
 			Delimiter string `default:":"`      // delimiter for key
 			Memory    struct {
 				CleanupInterval int `default:"60"` // seconds
-			}
-			Badger struct {
-				Path string `default:"data/auth"`
 			}
 			Redis struct {
 				Addr     string
@@ -82,8 +79,5 @@ type Middleware struct {
 		Disable             bool
 		SkippedPathPrefixes []string
 		ModelFile           string `default:"rbac_model.conf"`
-	}
-	Static struct {
-		Dir string // Static files directory (From command arguments)
 	}
 }

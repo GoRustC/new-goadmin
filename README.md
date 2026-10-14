@@ -11,9 +11,10 @@
 ## 相对上游的改动
 
 **依赖与构建**
-- 要求 Go 1.27.2；依赖升级到当时的最新次版本，badger 升至 v4、golang-jwt 升至 v5；SQLite 驱动改为纯 Go 实现，不再需要 cgo。
+- 要求 Go 1.27.2；依赖升级到当时的最新次版本，golang-jwt 升至 v5；SQLite 驱动改为纯 Go 实现，不再需要 cgo。
 - 用标准库替换 `pkg/errors` 和 json-iterator；Redis 客户端统一为 go-redis v9；wire 版本由 `go.mod` 固定。
-- 移除 Prometheus 集成，以及未使用的 oss、mail 包。
+- 移除用不到的功能：oss、mail 包，badger 缓存，数据库读写分离，守护进程模式（`start --daemon` 与 `stop`，改由 systemd 管理），静态文件托管（前端由 nginx 提供），以及无效的 `/openapi.json` 路由。
+- 原有的 Prometheus 集成改为独立端口上的 `/metrics`，见运维手册。
 
 **安全**
 - 去掉内置的 JWT 密钥和默认口令；生产模式下拒绝已公开的默认值。
@@ -47,6 +48,7 @@
 - 未配置 `DefaultLoginPwd` 时，新建用户必须填写密码，重置密码不可用。
 - 只有 root 能重置他人密码或在编辑用户时设置新密码，其他管理员返回 403（`com.rbac.root-only`）。
 - 用户名、角色编码、同一父菜单下的菜单编码在数据库中唯一；重复时返回 409（原为 400）。已有数据若存在重复，升级后首次启动会报错退出，需先清理重复行。
+- `start` 不再接受 `-s`（静态文件目录）和 `--daemon`，`stop` 命令已删除；缓存与 token 存储的类型只能是 `memory` 或 `redis`，配置中的 `badger` 和 `Storage.DB.Resolver` 需删除。
 - 用户冻结状态的值由 `freezed` 改为 `frozen`，前端提交和显示需同步修改。旧数据中的 `freezed` 用户仍无法登录（只有 `activated` 可以登录），编辑时需改为新值。
 - 生产模式下 root 密码必须是 bcrypt 哈希（`ginadmin hash-password` 生成），不再接受 MD5；启动命令必须指定 `-c`。
 - 配置项变化：新增 `Storage.Cache.KeyPrefix`（生产样例为 `ginadmin:`）、`MaxSessionHours`、`TrustedProxies`、`LoginLock`、`ReadHeaderTimeout`、`MaxHeaderBytes`、`LoggerRetentionDays`；删除 `GenPolicyFile`、Casbin 的 `AutoLoadInterval` 和 `LoadThread`、日志请求体长度相关配置和 Prometheus 配置；`DisableSwagger` 默认改为 true。
@@ -72,8 +74,6 @@ dev 配置使用 SQLite 和内存缓存，开箱即用：
 - 监听 `:8040`，root 账号为 `admin`，密码为 `abc-123`（前端发送它的 MD5）。
 - JWT 密钥为空时每次启动随机生成，重启后需要重新登录。
 - Swagger 在 `/swagger/index.html`。
-
-托管前端静态文件：`go run . start -d configs -c dev -s /path/to/dist`。
 
 ## 生产部署
 
@@ -189,7 +189,7 @@ swag init --parseDependency --generalInfo ./main.go --output ./internal/swagger
 ## 目录结构
 
 ```
-cmd/                 命令行入口（start、stop、version、hash-password）
+cmd/                 命令行入口（start、version、hash-password）
 configs/             配置：dev、prod 样例，菜单定义，Casbin 模型
 deploy/              systemd 服务、环境变量模板、nginx 示例、运维手册
 internal/bootstrap/  启动流程与 HTTP 服务

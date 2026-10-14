@@ -55,10 +55,10 @@ func (c *Config) Validate() error {
 	oneOf("Storage.DB.Type", c.Storage.DB.Type, "sqlite3", "mysql", "postgres")
 	check(c.Storage.DB.DSN != "", "Storage.DB.DSN is required")
 
-	oneOf("Storage.Cache.Type", c.Storage.Cache.Type, "memory", "badger", "redis")
+	oneOf("Storage.Cache.Type", c.Storage.Cache.Type, "memory", "redis")
 	redisAddr("Storage.Cache", c.Storage.Cache.Type, c.Storage.Cache.Redis.Addr)
 
-	oneOf("Middleware.Auth.Store.Type", c.Middleware.Auth.Store.Type, "memory", "badger", "redis")
+	oneOf("Middleware.Auth.Store.Type", c.Middleware.Auth.Store.Type, "memory", "redis")
 	redisAddr("Middleware.Auth.Store", c.Middleware.Auth.Store.Type, c.Middleware.Auth.Store.Redis.Addr)
 	check(c.Middleware.Auth.Expired > 0, "Middleware.Auth.Expired must be greater than 0")
 
