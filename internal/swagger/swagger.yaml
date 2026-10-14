@@ -346,7 +346,7 @@ definitions:
           $ref: '#/definitions/schema.UserRole'
         type: array
       status:
-        description: Status of user (activated, freezed)
+        description: Status of user (activated, frozen)
         type: string
       updated_at:
         description: Update time
@@ -383,10 +383,10 @@ definitions:
           $ref: '#/definitions/schema.UserRole'
         type: array
       status:
-        description: Status of user (activated, freezed)
+        description: Status of user (activated, frozen)
         enum:
         - activated
-        - freezed
+        - frozen
         type: string
       username:
         description: Username for login
@@ -1090,7 +1090,7 @@ paths:
         in: query
         name: name
         type: string
-      - description: Status of user (activated, freezed)
+      - description: Status of user (activated, frozen)
         in: query
         name: status
         type: string

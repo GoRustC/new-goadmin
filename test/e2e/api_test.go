@@ -267,7 +267,7 @@ func TestUserManagement(t *testing.T) {
 	// Freezing a user ends their session and blocks login.
 	token := mustLogin(t, username, "Pass-1")
 	expectStatus(t, "active user", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusOK)
-	expectStatus(t, "freeze user", call(t, http.MethodPut, "/api/v1/users/"+userID, root, userForm(username, "", "freezed", roleID)), http.StatusOK)
+	expectStatus(t, "freeze user", call(t, http.MethodPut, "/api/v1/users/"+userID, root, userForm(username, "", "frozen", roleID)), http.StatusOK)
 	expectStatus(t, "frozen user's token", call(t, http.MethodGet, "/api/v1/current/user", token, nil), http.StatusUnauthorized)
 	expectStatus(t, "frozen user login", login(t, username, "Pass-1"), http.StatusBadRequest)
 
@@ -486,7 +486,7 @@ func TestPrivilegeCeiling(t *testing.T) {
 	denied("change own account through user management",
 		call(t, http.MethodPut, "/api/v1/users/"+adminID, admin, userForm("adm"+s, "", "activated", adminRole, highRole)))
 	expectStatus(t, "manage a lesser user", call(t, http.MethodPut, "/api/v1/users/"+lowID, admin,
-		userForm("low"+s, "", "freezed", lowRole)), http.StatusOK)
+		userForm("low"+s, "", "frozen", lowRole)), http.StatusOK)
 
 	// The victim's password was not changed.
 	mustLogin(t, "high"+s, "Pass-1")
@@ -573,7 +573,7 @@ func TestLoginLockAndEnumeration(t *testing.T) {
 	// A frozen account answers a wrong password exactly like any other.
 	frozen := "fz" + s
 	frozenID := createUser(t, root, frozen, "Right-1", roleID)
-	expectStatus(t, "freeze", call(t, http.MethodPut, "/api/v1/users/"+frozenID, root, userForm(frozen, "", "freezed", roleID)), http.StatusOK)
+	expectStatus(t, "freeze", call(t, http.MethodPut, "/api/v1/users/"+frozenID, root, userForm(frozen, "", "frozen", roleID)), http.StatusOK)
 	r := login(t, frozen, "wrong")
 	if r.Error == nil || r.Error.ID != "com.invalid.username-or-password" {
 		t.Fatalf("frozen account with a wrong password must look like any failure, got %+v", r.Error)

@@ -132,6 +132,7 @@
 | 守护进程日志与锁文件权限 0666，日志目录 0777 | 改为 0600 和 0750 | 421afe0 |
 | `NewGormHook` 迁移失败时 panic；配置文件扩展名按子串匹配（`.js` 被当作支持） | 返回错误；精确匹配 | f2bd8d7 |
 | 没有静态检查 | 新增 `.golangci.yml`（errcheck、govet、staticcheck、unused、errorlint、gosec、revive、misspell、modernize 等，外加 gofmt、goimports），代码零告警，并加入 CI | d09a271 |
+| 用户冻结状态拼写为 `freezed` | 改为 `frozen`；不做数据迁移，旧值仍被拒绝登录 | 见 git log |
 | 导出标识符缺少文档注释 | `internal/mods/` 之外全部补齐，每个包有包注释；全部代码改用 `any`、`range n`、`wg.Go`、`strings.SplitSeq` 等写法 | fde3596、f2bd8d7 |
 
 gosec 报告逐条审查：真实问题已修复，其余（运维指定的配置路径、错误 ID 被误判为口令、MD5 仅作为前端传输格式和缓存键）在代码中注明原因后忽略。静态文件中间件经测试确认不会读取根目录之外的文件（`net/http` 拒绝含 `..` 的路径），已加测试防止回归。
@@ -143,9 +144,6 @@ gosec 报告逐条审查：真实问题已修复，其余（运维指定的配�
 - 重置他人密码只有 root 可以，已在代码中强制，不依赖 `menu.json`。
 - 每台服务器只部署一个实例；多实例相关问题不再处理。
 - 底座是公开仓库，直接在其中添加模块，不作为库引入：不移出 `internal/`，不做模块框架和依赖注入重构。
-
-**需要决定**
-- `UserStatusFreezed = "freezed"` 拼写错误，且值已写入数据库。改为 `frozen` 需要迁移已有数据并同步前端；保持不变则只是不规范。
 
 ---
 
@@ -203,7 +201,7 @@ gosec 报告逐条审查：真实问题已修复，其余（运维指定的配�
 - `Casbin.Disable=true` 时调用 `GetEnforcer` 会空指针，目前靠中间件 Skipper 挡住。
 - root 无法刷新 token（数据库中没有 root 用户）。
 - 改密码接口的新密码没有长度上限，超过 72 字节时 bcrypt 报错返回 500。
-- `UserStatusFreezed = "freezed"` 拼写错误且已写入数据库，越晚改成本越高。
+- ~~`UserStatusFreezed = "freezed"` 拼写错误~~：已改为 `frozen`（无数据迁移，按决定重建数据库）。
 - `gormx` 同时链接三种数据库驱动，下游无法裁剪。
 - 日志输出到 stderr 而非注释所写的 stdout；启动时打印的多行配置会干扰按行解析的日志采集。
 - `IdleTimeout=10` 小于 nginx upstream keepalive 默认值，可能偶发 502。

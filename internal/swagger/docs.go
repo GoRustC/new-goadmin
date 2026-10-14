@@ -1108,7 +1108,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Status of user (activated, freezed)",
+                        "description": "Status of user (activated, frozen)",
                         "name": "status",
                         "in": "query"
                     }
@@ -1878,7 +1878,7 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "description": "Status of user (activated, freezed)",
+                    "description": "Status of user (activated, frozen)",
                     "type": "string"
                 },
                 "updated_at": {
@@ -1933,11 +1933,11 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "description": "Status of user (activated, freezed)",
+                    "description": "Status of user (activated, frozen)",
                     "type": "string",
                     "enum": [
                         "activated",
-                        "freezed"
+                        "frozen"
                     ]
                 },
                 "username": {

@@ -1133,7 +1133,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Status of user (activated, freezed)",
+          "description" : "Status of user (activated, frozen)",
           "in" : "query",
           "name" : "status",
           "schema" : {
@@ -1907,7 +1907,7 @@
             "type" : "array"
           },
           "status" : {
-            "description" : "Status of user (activated, freezed)",
+            "description" : "Status of user (activated, frozen)",
             "type" : "string"
           },
           "updated_at" : {
@@ -1956,8 +1956,8 @@
             "type" : "array"
           },
           "status" : {
-            "description" : "Status of user (activated, freezed)",
-            "enum" : [ "activated", "freezed" ],
+            "description" : "Status of user (activated, frozen)",
+            "enum" : [ "activated", "frozen" ],
             "type" : "string"
           },
           "username" : {
