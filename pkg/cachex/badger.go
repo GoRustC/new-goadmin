@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -44,6 +45,10 @@ func NewBadgerCache(cfg BadgerConfig, opts ...Option) Cacher {
 type badgerCache struct {
 	opts *options
 	db   *badger.DB
+	// mu serializes GetAndDelete and Incr. Badger lets one process open a
+	// directory, so this removes conflicts between them; update still
+	// retries conflicts with plain writes such as Set.
+	mu sync.Mutex
 }
 
 func (a *badgerCache) getKey(ns, key string) string {
@@ -168,6 +173,8 @@ func (a *badgerCache) Incr(ctx context.Context, ns, key string, expiration time.
 // transaction wrote the same key first. Badger transactions are
 // serializable, so the read-modify-write in fn is atomic.
 func (a *badgerCache) update(fn func(txn *badger.Txn) error) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	var err error
 	for range maxConflictRetries {
 		if err = a.db.Update(fn); !errors.Is(err, badger.ErrConflict) {
