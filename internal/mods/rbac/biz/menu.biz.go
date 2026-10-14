@@ -196,15 +196,24 @@ func (a *Menu) Query(ctx context.Context, params schema.MenuQueryParam) (*schema
 		}
 	}
 
-	if params.IncludeResources {
+	if params.IncludeResources && len(result.Data) > 0 {
+		// One query for all menus instead of one per menu.
+		menuIDs := make([]string, len(result.Data))
 		for i, item := range result.Data {
-			resResult, err := a.MenuResourceDAL.Query(ctx, schema.MenuResourceQueryParam{
-				MenuID: item.ID,
-			})
-			if err != nil {
-				return nil, err
+			menuIDs[i] = item.ID
+			item.Resources = schema.MenuResources{}
+		}
+		resResult, err := a.MenuResourceDAL.Query(ctx, schema.MenuResourceQueryParam{
+			MenuIDs: menuIDs,
+		})
+		if err != nil {
+			return nil, err
+		}
+		byID := result.Data.ToMap()
+		for _, r := range resResult.Data {
+			if m, ok := byID[r.MenuID]; ok {
+				m.Resources = append(m.Resources, r)
 			}
-			result.Data[i].Resources = resResult.Data
 		}
 	}
 
@@ -242,47 +251,42 @@ func (a *Menu) fillQueryParam(ctx context.Context, params *schema.MenuQueryParam
 	return nil
 }
 
+// appendChildren adds the descendants and ancestors of the matched menus, so
+// the result forms a tree. Menus are a small table, so it is read once and
+// the relatives are found in memory, instead of one query per matched menu.
 func (a *Menu) appendChildren(ctx context.Context, data schema.Menus) (schema.Menus, error) {
 	if len(data) == 0 {
 		return data, nil
 	}
 
-	existsInData := func(id string) bool {
-		for _, item := range data {
-			if item.ID == id {
-				return true
-			}
-		}
-		return false
+	allResult, err := a.MenuDAL.Query(ctx, schema.MenuQueryParam{})
+	if err != nil {
+		return nil, err
 	}
-
+	byID := allResult.Data.ToMap()
+	included := make(map[string]struct{}, len(data))
 	for _, item := range data {
-		childResult, err := a.MenuDAL.Query(ctx, schema.MenuQueryParam{
-			ParentPathPrefix: item.ParentPath + item.ID + util.TreePathDelimiter,
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, child := range childResult.Data {
-			if existsInData(child.ID) {
-				continue
-			}
-			data = append(data, child)
+		included[item.ID] = struct{}{}
+	}
+	add := func(m *schema.Menu) {
+		if _, ok := included[m.ID]; !ok {
+			included[m.ID] = struct{}{}
+			data = append(data, m)
 		}
 	}
 
-	if parentIDs := data.SplitParentIDs(); len(parentIDs) > 0 {
-		parentResult, err := a.MenuDAL.Query(ctx, schema.MenuQueryParam{
-			InIDs: parentIDs,
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range parentResult.Data {
-			if existsInData(p.ID) {
-				continue
+	matched := append(schema.Menus(nil), data...)
+	for _, item := range matched {
+		prefix := item.ParentPath + item.ID + util.TreePathDelimiter
+		for _, m := range allResult.Data {
+			if strings.HasPrefix(m.ParentPath, prefix) {
+				add(m)
 			}
-			data = append(data, p)
+		}
+	}
+	for _, id := range data.SplitParentIDs() {
+		if p, ok := byID[id]; ok {
+			add(p)
 		}
 	}
 	sort.Sort(data)
