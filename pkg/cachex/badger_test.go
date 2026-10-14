@@ -75,3 +75,39 @@ func TestMemoryCacheKeyPrefix(t *testing.T) {
 		t.Fatalf("iterator should strip the prefix, got %v", seen)
 	}
 }
+
+// Keys handed to an Iterator callback must stay valid after it returns.
+func TestBadgerIteratorKeysOutliveCallback(t *testing.T) {
+	cache := NewBadgerCache(BadgerConfig{Path: t.TempDir()})
+	defer cache.Close(context.Background())
+
+	ctx := context.Background()
+	want := map[string]bool{}
+	for i := range 200 {
+		key := fmt.Sprintf("key-%03d", i)
+		want[key] = true
+		if err := cache.Set(ctx, "ns", key, "v"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var keys []string
+	if err := cache.Iterator(ctx, "ns", func(_ context.Context, key, _ string) bool {
+		keys = append(keys, key)
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, k := range keys {
+		got[k] = true
+	}
+	if len(got) != len(want) {
+		t.Fatalf("kept %d distinct keys, want %d", len(got), len(want))
+	}
+	for k := range want {
+		if !got[k] {
+			t.Fatalf("key %q missing or overwritten", k)
+		}
+	}
+}

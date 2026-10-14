@@ -31,7 +31,7 @@ type Menu struct {
 }
 
 func (a *Menu) InitFromFile(ctx context.Context, menuFile string) error {
-	f, err := os.ReadFile(menuFile)
+	f, err := os.ReadFile(menuFile) //nolint:gosec // Path from the configuration.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logging.Context(ctx).Warn("Menu data file not found, skip init menu data from file", zap.String("file", menuFile))

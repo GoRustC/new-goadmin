@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -61,11 +62,11 @@ func StartCmd() *cli.Command {
 				args = append(args, "-c", configs)
 				args = append(args, "-s", staticDir)
 				fmt.Printf("execute command: %s %s \n", bin, strings.Join(args, " "))
-				command := exec.Command(bin, args...)
+				command := exec.Command(bin, args...) //nolint:gosec // Re-executes this binary.
 
 				// Redirect stdout and stderr to log file
 				stdLogFile := fmt.Sprintf("%s.log", c.App.Name)
-				file, err := os.OpenFile(stdLogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+				file, err := os.OpenFile(stdLogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // Fixed name in the working directory.
 				if err != nil {
 					fmt.Printf("failed to open log file: %s \n", err.Error())
 					return err
@@ -86,7 +87,11 @@ func StartCmd() *cli.Command {
 				fmt.Printf("Service %s daemon thread started successfully\n", config.C.General.AppName)
 
 				pid := command.Process.Pid
-				_ = os.WriteFile(fmt.Sprintf("%s.lock", c.App.Name), []byte(fmt.Sprintf("%d", pid)), 0666)
+				lockFile := fmt.Sprintf("%s.lock", c.App.Name)
+				//nolint:gosec // Fixed name in the working directory.
+				if err := os.WriteFile(lockFile, []byte(strconv.Itoa(pid)), 0o600); err != nil {
+					fmt.Printf("failed to write %s, the stop command will not find the process: %s \n", lockFile, err.Error())
+				}
 				fmt.Printf("service %s daemon thread started with pid %d \n", config.C.General.AppName, pid)
 				os.Exit(0)
 			}

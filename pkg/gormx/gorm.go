@@ -72,6 +72,16 @@ func (zapWriter) Printf(format string, args ...any) {
 	zap.L().Warn(fmt.Sprintf(format, args...), zap.String("tag", "sql"))
 }
 
+// ensureSQLiteDir creates the directory of a SQLite database file.
+func ensureSQLiteDir(dsn string) error {
+	path, _, _ := strings.Cut(strings.TrimPrefix(dsn, "file:"), "?")
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return fmt.Errorf("create sqlite directory %s: %w", dir, err)
+	}
+	return nil
+}
+
 func New(cfg Config) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 
@@ -84,7 +94,9 @@ func New(cfg Config) (*gorm.DB, error) {
 	case "postgres":
 		dialector = postgres.Open(cfg.DSN)
 	case "sqlite3":
-		_ = os.MkdirAll(filepath.Dir(cfg.DSN), os.ModePerm)
+		if err := ensureSQLiteDir(cfg.DSN); err != nil {
+			return nil, err
+		}
 		dialector = sqlite.Open(sqliteDSN(cfg.DSN))
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.DBType)
@@ -121,18 +133,22 @@ func New(cfg Config) (*gorm.DB, error) {
 			case "sqlite3":
 				open = func(dsn string) gorm.Dialector { return sqlite.Open(sqliteDSN(dsn)) }
 			default:
-				continue
+				return nil, fmt.Errorf("unsupported resolver database type: %s", r.DBType)
 			}
 
 			for _, replica := range r.Replicas {
 				if dbType == "sqlite3" {
-					_ = os.MkdirAll(filepath.Dir(cfg.DSN), os.ModePerm)
+					if err := ensureSQLiteDir(replica); err != nil {
+						return nil, err
+					}
 				}
 				resolverCfg.Replicas = append(resolverCfg.Replicas, open(replica))
 			}
 			for _, source := range r.Sources {
 				if dbType == "sqlite3" {
-					_ = os.MkdirAll(filepath.Dir(cfg.DSN), os.ModePerm)
+					if err := ensureSQLiteDir(source); err != nil {
+						return nil, err
+					}
 				}
 				resolverCfg.Sources = append(resolverCfg.Sources, open(source))
 			}

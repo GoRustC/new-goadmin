@@ -1,32 +1,14 @@
+// Package toml wraps the TOML library used to read configuration files.
 package toml
 
-import (
-	"bytes"
+import "github.com/BurntSushi/toml"
 
-	"github.com/BurntSushi/toml"
-)
-
+// Aliases for the underlying library.
 var (
 	Unmarshal  = toml.Unmarshal
 	DecodeFile = toml.DecodeFile
 	Decode     = toml.Decode
 )
 
+// Value is a TOML value whose decoding is deferred.
 type Value = toml.Primitive
-
-func Marshal(v any) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	err := toml.NewEncoder(buf).Encode(v)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func MarshalToString(v any) (string, error) {
-	b, err := Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}

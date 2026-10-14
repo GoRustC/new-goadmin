@@ -30,5 +30,5 @@ func (t *tokenInfo) GetExpiresAt() int64 {
 }
 
 func (t *tokenInfo) EncodeToJSON() ([]byte, error) {
-	return json.Marshal(t)
+	return json.Marshal(t) //nolint:gosec // The token response is meant to carry the token.
 }

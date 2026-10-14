@@ -152,7 +152,7 @@ func ResError(c *gin.Context, err error, status ...int) {
 		ierr.Detail = http.StatusText(http.StatusInternalServerError)
 	}
 
-	ierr.Code = int32(code)
+	ierr.Code = int32(code) //nolint:gosec // HTTP status codes fit in int32.
 	ResJSON(c, code, ResponseResult{Error: ierr})
 }
 

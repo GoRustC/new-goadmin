@@ -10,7 +10,7 @@ import (
 
 // knownDefaultPassword is MD5("abc-123"), the password shipped in earlier
 // versions of this project for the root account and for new or reset users.
-const knownDefaultPassword = "6351623c8cef86fefabfa7da046fc619"
+const knownDefaultPassword = "6351623c8cef86fefabfa7da046fc619" //nolint:gosec // Rejected, never used to log in.
 
 // minSigningKeyLen matches the check applied to SigningKey at startup.
 const minSigningKeyLen = 32

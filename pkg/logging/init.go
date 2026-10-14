@@ -42,7 +42,7 @@ type HookHandlerFunc func(ctx context.Context, hookCfg *HookConfig) (*Hook, erro
 
 func LoadConfigFromToml(filename string) (*LoggerConfig, error) {
 	cfg := &Config{}
-	buf, err := os.ReadFile(filename)
+	buf, err := os.ReadFile(filename) //nolint:gosec // Path from the configuration.
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,9 @@ func InitWithConfig(ctx context.Context, cfg *LoggerConfig, hookHandle ...HookHa
 
 	if cfg.File.Enable {
 		filename := cfg.File.Path
-		_ = os.MkdirAll(filepath.Dir(filename), 0777)
+		if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
+			return nil, err
+		}
 		fileWriter := &lumberjack.Logger{
 			Filename:   filename,
 			MaxSize:    cfg.File.MaxSize,

@@ -41,7 +41,7 @@ func Load(dir string, names ...string) error {
 			return nil
 		}
 
-		buf, err := os.ReadFile(name)
+		buf, err := os.ReadFile(name) //nolint:gosec // Config path chosen by the operator.
 		if err != nil {
 			return errors.Wrapf(err, "failed to read config file %s", name)
 		}

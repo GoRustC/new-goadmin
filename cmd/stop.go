@@ -19,7 +19,7 @@ func StopCmd() *cli.Command {
 		Action: func(c *cli.Context) error {
 			appName := c.App.Name
 			lockFile := fmt.Sprintf("%s.lock", appName)
-			content, err := os.ReadFile(lockFile)
+			content, err := os.ReadFile(lockFile) //nolint:gosec // Fixed name in the working directory.
 			if err != nil {
 				return err
 			}

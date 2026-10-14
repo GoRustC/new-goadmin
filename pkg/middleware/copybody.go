@@ -72,7 +72,7 @@ func CopyBodyWithConfig(config CopyBodyConfig) gin.HandlerFunc {
 			return
 		}
 
-		c.Request.Body.Close()
+		_ = c.Request.Body.Close()
 		bf := bytes.NewBuffer(requestBody)
 		c.Request.Body = io.NopCloser(bf)
 		c.Set(util.ReqBodyKey, requestBody)

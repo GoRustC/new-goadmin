@@ -4,6 +4,7 @@ const (
 	CacheNSForUser = "user"
 )
 
+//nolint:gosec // Error IDs, not credentials.
 const (
 	ErrInvalidTokenID            = "com.invalid.token"
 	ErrInvalidCaptchaID          = "com.invalid.captcha"

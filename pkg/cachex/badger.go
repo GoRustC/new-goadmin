@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/dgraph-io/badger/v4"
 )
@@ -46,22 +45,9 @@ func (a *badgerCache) getKey(ns, key string) string {
 	return a.opts.key(ns, key)
 }
 
-func (a *badgerCache) strToBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(
-		&struct {
-			string
-			Cap int
-		}{s, len(s)},
-	))
-}
-
-func (a *badgerCache) bytesToStr(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
-}
-
 func (a *badgerCache) Set(ctx context.Context, ns, key, value string, expiration ...time.Duration) error {
 	return a.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry(a.strToBytes(a.getKey(ns, key)), a.strToBytes(value))
+		entry := badger.NewEntry([]byte(a.getKey(ns, key)), []byte(value))
 		if len(expiration) > 0 {
 			entry = entry.WithTTL(expiration[0])
 		}
@@ -73,7 +59,7 @@ func (a *badgerCache) Get(ctx context.Context, ns, key string) (string, bool, er
 	value := ""
 	ok := false
 	err := a.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(a.strToBytes(a.getKey(ns, key)))
+		item, err := txn.Get([]byte(a.getKey(ns, key)))
 		if err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				return nil
@@ -82,7 +68,7 @@ func (a *badgerCache) Get(ctx context.Context, ns, key string) (string, bool, er
 		}
 		ok = true
 		val, err := item.ValueCopy(nil)
-		value = a.bytesToStr(val)
+		value = string(val)
 		return err
 	})
 	if err != nil {
@@ -94,7 +80,7 @@ func (a *badgerCache) Get(ctx context.Context, ns, key string) (string, bool, er
 func (a *badgerCache) Exists(ctx context.Context, ns, key string) (bool, error) {
 	exists := false
 	err := a.db.View(func(txn *badger.Txn) error {
-		_, err := txn.Get(a.strToBytes(a.getKey(ns, key)))
+		_, err := txn.Get([]byte(a.getKey(ns, key)))
 		if err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
 				return nil
@@ -116,7 +102,7 @@ func (a *badgerCache) Delete(ctx context.Context, ns, key string) error {
 	}
 
 	return a.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete(a.strToBytes(a.getKey(ns, key)))
+		return txn.Delete([]byte(a.getKey(ns, key)))
 	})
 }
 
@@ -129,7 +115,7 @@ func (a *badgerCache) GetAndDelete(ctx context.Context, ns, key string) (string,
 	}
 
 	err = a.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete(a.strToBytes(a.getKey(ns, key)))
+		return txn.Delete([]byte(a.getKey(ns, key)))
 	})
 	if err != nil {
 		return "", false, err
@@ -141,7 +127,7 @@ func (a *badgerCache) GetAndDelete(ctx context.Context, ns, key string) (string,
 func (a *badgerCache) Iterator(ctx context.Context, ns string, fn func(ctx context.Context, key, value string) bool) error {
 	return a.db.View(func(txn *badger.Txn) error {
 		iterOpts := badger.DefaultIteratorOptions
-		iterOpts.Prefix = a.strToBytes(a.getKey(ns, ""))
+		iterOpts.Prefix = []byte(a.getKey(ns, ""))
 		it := txn.NewIterator(iterOpts)
 		defer it.Close()
 
@@ -152,8 +138,8 @@ func (a *badgerCache) Iterator(ctx context.Context, ns string, fn func(ctx conte
 			if err != nil {
 				return err
 			}
-			key := a.bytesToStr(item.Key())
-			if !fn(ctx, strings.TrimPrefix(key, a.getKey(ns, "")), a.bytesToStr(val)) {
+			key := string(item.Key())
+			if !fn(ctx, strings.TrimPrefix(key, a.getKey(ns, "")), string(val)) {
 				break
 			}
 			it.Next()
