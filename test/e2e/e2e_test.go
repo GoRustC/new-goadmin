@@ -81,12 +81,14 @@ func (s *recordingStore) answer(id string) string {
 func TestMain(m *testing.M) {
 	dbType, dsn, redisAddr := os.Getenv("E2E_DB_TYPE"), os.Getenv("E2E_DB_DSN"), os.Getenv("E2E_REDIS_ADDR")
 	withRedis = dbType != "" && dsn != "" && redisAddr != ""
+	// Removed explicitly before os.Exit, which skips deferred calls.
+	var tempDir string
 	if !withRedis {
 		dir, err := os.MkdirTemp("", "ginadmin-e2e-")
 		if err != nil {
 			panic(err)
 		}
-		defer os.RemoveAll(dir)
+		tempDir = dir
 		dbType, dsn, redisAddr = "sqlite3", filepath.Join(dir, "e2e.db"), "unused:6379"
 	}
 
@@ -148,6 +150,9 @@ func TestMain(m *testing.M) {
 	server.Close()
 	_ = inj.M.Release(ctx)
 	cleanup()
+	if tempDir != "" {
+		_ = os.RemoveAll(tempDir)
+	}
 	os.Exit(code)
 }
 

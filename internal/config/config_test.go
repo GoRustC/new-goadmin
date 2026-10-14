@@ -120,6 +120,10 @@ func TestValidateRejects(t *testing.T) {
 		{"casbin disabled", func(c *Config) { c.Middleware.Casbin.Disable = true }, "Casbin.Disable"},
 		{"pprof on all interfaces", func(c *Config) { c.General.PprofAddr = ":6060" }, "PprofAddr"},
 		{"pprof on a public address", func(c *Config) { c.General.PprofAddr = "10.0.0.5:6060" }, "PprofAddr"},
+		{"rate limit of zero per IP", func(c *Config) {
+			c.Middleware.RateLimiter.Enable, c.Middleware.RateLimiter.Store.Type = true, "memory"
+			c.Middleware.RateLimiter.Period, c.Middleware.RateLimiter.MaxRequestsPerUser = 10, 100
+		}, "MaxRequestsPerIP"},
 		{"metrics without port", func(c *Config) { c.General.MetricsAddr = "127.0.0.1" }, "MetricsAddr"},
 		{"metrics on the API address", func(c *Config) { c.General.MetricsAddr = c.General.HTTP.Addr }, "MetricsAddr"},
 		{"short old signing key", func(c *Config) { c.Middleware.Auth.OldSigningKey = "short" }, "OldSigningKey"},

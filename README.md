@@ -182,7 +182,7 @@ GitHub Actions（`.github/workflows/ci.yml`）会在每次推送和 PR 时运行
 
 ```
 go generate ./internal/wirex    # 依赖注入代码（wire 版本由 go.mod 的 tool 指令固定）
-go install github.com/swaggo/swag/cmd/swag@latest   # API 文档生成工具
+go install github.com/swaggo/swag/cmd/swag@v1.16.6   # API 文档生成工具，版本与 go.mod 中的 swag 库一致
 swag init --parseDependency --generalInfo ./main.go --output ./internal/swagger
 ```
 

@@ -66,6 +66,9 @@ func (c *Config) Validate() error {
 		oneOf("Middleware.RateLimiter.Store.Type", c.Middleware.RateLimiter.Store.Type, "memory", "redis")
 		redisAddr("Middleware.RateLimiter.Store", c.Middleware.RateLimiter.Store.Type, c.Middleware.RateLimiter.Store.Redis.Addr)
 		check(c.Middleware.RateLimiter.Period > 0, "Middleware.RateLimiter.Period must be greater than 0")
+		// A limit of 0 would silently disable that half of the limiter.
+		check(c.Middleware.RateLimiter.MaxRequestsPerIP > 0, "Middleware.RateLimiter.MaxRequestsPerIP must be greater than 0")
+		check(c.Middleware.RateLimiter.MaxRequestsPerUser > 0, "Middleware.RateLimiter.MaxRequestsPerUser must be greater than 0")
 	}
 
 	if !c.Middleware.Casbin.Disable {
