@@ -85,3 +85,33 @@ func TestWrapPageQueryBounds(t *testing.T) {
 		})
 	}
 }
+
+// A column named after a reserved word used to break the ORDER BY, which was
+// assembled as raw text.
+type ranked struct {
+	ID    int
+	Order int `gorm:"column:order"`
+}
+
+func TestOrderByQuotesColumns(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(new(ranked)); err != nil {
+		t.Fatal(err)
+	}
+	for i, o := range []int{3, 1, 2} {
+		db.Create(&ranked{ID: i + 1, Order: o})
+	}
+	var out []ranked
+	_, err = WrapPageQuery(context.Background(), db.Model(new(ranked)),
+		PaginationParam{Pagination: true, Current: 1, PageSize: 10},
+		QueryOptions{OrderFields: OrderByParams{{Field: "order", Direction: DESC}}}, &out)
+	if err != nil {
+		t.Fatalf("ORDER BY a reserved word failed: %v", err)
+	}
+	if len(out) != 3 || out[0].Order != 3 || out[2].Order != 1 {
+		t.Fatalf("not sorted by order DESC: %+v", out)
+	}
+}

@@ -1,6 +1,9 @@
 package util
 
-import "github.com/GoRustC/new-goadmin/pkg/errors"
+import (
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"gorm.io/gorm/clause"
+)
 
 const (
 	ReqBodyKey        = "req-body"
@@ -48,14 +51,17 @@ type OrderByParam struct {
 
 type OrderByParams []OrderByParam
 
-func (a OrderByParams) ToSQL() string {
-	if len(a) == 0 {
-		return ""
-	}
-
-	var sql string
+// Clauses returns the ordering as gorm clauses. gorm quotes each column for
+// the current database, so names that are reserved words (order, rank, key)
+// work and a field name can never inject SQL. Unknown directions sort
+// ascending.
+func (a OrderByParams) Clauses() []clause.OrderByColumn {
+	cols := make([]clause.OrderByColumn, 0, len(a))
 	for _, v := range a {
-		sql += v.Field + " " + string(v.Direction) + ","
+		cols = append(cols, clause.OrderByColumn{
+			Column: clause.Column{Name: v.Field},
+			Desc:   v.Direction == DESC,
+		})
 	}
-	return sql[:len(sql)-1]
+	return cols
 }

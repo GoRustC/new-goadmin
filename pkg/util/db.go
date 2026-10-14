@@ -67,8 +67,8 @@ func wrapQueryOptions(db *gorm.DB, opts QueryOptions) *gorm.DB {
 	if len(opts.OmitFields) > 0 {
 		db = db.Omit(opts.OmitFields...)
 	}
-	if len(opts.OrderFields) > 0 {
-		db = db.Order(opts.OrderFields.ToSQL())
+	for _, col := range opts.OrderFields.Clauses() {
+		db = db.Order(col)
 	}
 	return db
 }
