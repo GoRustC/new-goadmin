@@ -68,7 +68,7 @@ func newSQLLogger(cfg Config) logger.Interface {
 
 type zapWriter struct{}
 
-func (zapWriter) Printf(format string, args ...interface{}) {
+func (zapWriter) Printf(format string, args ...any) {
 	zap.L().Warn(fmt.Sprintf(format, args...), zap.String("tag", "sql"))
 }
 
@@ -200,8 +200,8 @@ func sqliteDSN(dsn string) string {
 	return dsn + sep + strings.Join(params, "&")
 }
 
-func stringSliceToInterfaceSlice(s []string) []interface{} {
-	r := make([]interface{}, len(s))
+func stringSliceToInterfaceSlice(s []string) []any {
+	r := make([]any, len(s))
 	for i, v := range s {
 		r[i] = v
 	}

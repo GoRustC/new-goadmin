@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"gorm.io/gorm"
 )
 
 // Get logger storage instance

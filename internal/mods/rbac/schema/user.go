@@ -3,10 +3,11 @@ package schema
 import (
 	"time"
 
+	"github.com/go-playground/validator/v10"
+
 	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/go-playground/validator/v10"
 )
 
 const (

@@ -6,11 +6,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormschema "gorm.io/gorm/schema"
+
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 )
 
 func TestMenuQueryAddsRelativesAndResources(t *testing.T) {

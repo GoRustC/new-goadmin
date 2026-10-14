@@ -8,8 +8,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/gin-gonic/gin"
+
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 )
 
 // ResError used to modify the error it was given. Shared error values, such
@@ -20,7 +21,7 @@ func TestResErrorDoesNotModifySharedError(t *testing.T) {
 	shared := errors.Forbidden("shared", "Permission denied").(*errors.Error)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

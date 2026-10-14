@@ -7,8 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"go.uber.org/zap"
+
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
 // The Run function sets up a signal handler and executes a handler function until a termination signal

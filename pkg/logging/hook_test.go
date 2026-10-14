@@ -21,17 +21,15 @@ func (e *countingExec) Close() error { return nil }
 
 // Writes racing with Flush used to send on the closed queue and panic.
 func TestHookWriteDuringFlush(t *testing.T) {
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		h := NewHook(&countingExec{}, SetHookMaxJobs(8), SetHookMaxWorkers(2))
 		var wg sync.WaitGroup
-		for w := 0; w < 8; w++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < 100; j++ {
+		for range 8 {
+			wg.Go(func() {
+				for range 100 {
 					_, _ = h.Write([]byte(`{"msg":"x"}`))
 				}
-			}()
+			})
 		}
 		h.Flush()
 		wg.Wait()
@@ -44,7 +42,7 @@ func TestHookWriteNeverBlocks(t *testing.T) {
 	h := NewHook(exec, SetHookMaxJobs(1), SetHookMaxWorkers(1))
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			_, _ = h.Write([]byte("x"))
 		}
 		close(done)
@@ -91,7 +89,7 @@ func (e *batchExec) Close() error { return nil }
 func TestHookBatchesQueuedEntries(t *testing.T) {
 	exec := &batchExec{}
 	h := NewHook(exec, SetHookMaxJobs(1024), SetHookMaxWorkers(1))
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		_, _ = h.Write([]byte(`{"msg":"x"}`))
 	}
 	h.Flush()

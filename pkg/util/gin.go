@@ -7,13 +7,14 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
-	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+
+	"github.com/GoRustC/new-goadmin/pkg/encoding/json"
+	"github.com/GoRustC/new-goadmin/pkg/errors"
+	"github.com/GoRustC/new-goadmin/pkg/logging"
 )
 
 // Get access token from header or query parameter
@@ -46,7 +47,7 @@ func GetBodyData(c *gin.Context) []byte {
 }
 
 // Parse body json data to struct
-func ParseJSON(c *gin.Context, obj interface{}) error {
+func ParseJSON(c *gin.Context, obj any) error {
 	if err := c.ShouldBindJSON(obj); err != nil {
 		return errors.BadRequest("", "Failed to parse json: %s", err.Error())
 	}
@@ -54,7 +55,7 @@ func ParseJSON(c *gin.Context, obj interface{}) error {
 }
 
 // Parse query parameter to struct
-func ParseQuery(c *gin.Context, obj interface{}) error {
+func ParseQuery(c *gin.Context, obj any) error {
 	if err := c.ShouldBindQuery(obj); err != nil {
 		return errors.BadRequest("", "Failed to parse query: %s", err.Error())
 	}
@@ -62,7 +63,7 @@ func ParseQuery(c *gin.Context, obj interface{}) error {
 }
 
 // Parse body form data to struct
-func ParseForm(c *gin.Context, obj interface{}) error {
+func ParseForm(c *gin.Context, obj any) error {
 	if err := c.ShouldBindWith(obj, binding.Form); err != nil {
 		return errors.BadRequest("", "Failed to parse form: %s", err.Error())
 	}
@@ -73,7 +74,7 @@ func ParseForm(c *gin.Context, obj interface{}) error {
 // internalErrorBody is sent when a response cannot be encoded.
 var internalErrorBody = []byte(`{"success":false,"error":{"id":"internal_server_error","code":500,"detail":"Internal Server Error","status":"Internal Server Error"}}`)
 
-func ResJSON(c *gin.Context, status int, v interface{}) {
+func ResJSON(c *gin.Context, status int, v any) {
 	buf, err := json.Marshal(v)
 	if err != nil {
 		// A value that cannot be encoded is a programming error: log which
@@ -87,7 +88,7 @@ func ResJSON(c *gin.Context, status int, v interface{}) {
 	c.Abort()
 }
 
-func ResSuccess(c *gin.Context, v interface{}) {
+func ResSuccess(c *gin.Context, v any) {
 	ResJSON(c, http.StatusOK, ResponseResult{
 		Success: true,
 		Data:    v,
@@ -100,7 +101,7 @@ func ResOK(c *gin.Context) {
 	})
 }
 
-func ResPage(c *gin.Context, v interface{}, pr *PaginationResult) {
+func ResPage(c *gin.Context, v any, pr *PaginationResult) {
 	var total int64
 	if pr != nil {
 		total = pr.Total
@@ -108,7 +109,7 @@ func ResPage(c *gin.Context, v interface{}, pr *PaginationResult) {
 
 	// Render a missing list as [] rather than null.
 	if isNilValue(v) {
-		v = make([]interface{}, 0)
+		v = make([]any, 0)
 	}
 
 	ResJSON(c, http.StatusOK, ResponseResult{

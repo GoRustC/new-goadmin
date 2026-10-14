@@ -9,12 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	_ "github.com/GoRustC/new-goadmin/internal/swagger"
 	"github.com/GoRustC/new-goadmin/internal/wirex"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"go.uber.org/zap"
 )
 
 // RunConfig defines the config for run command.

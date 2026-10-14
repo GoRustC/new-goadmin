@@ -5,12 +5,13 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"go.uber.org/zap"
 )
 
 // Logger management
@@ -32,9 +33,7 @@ func (a *Logger) StartRetention(ctx context.Context) {
 		return
 	}
 	a.stop = make(chan struct{})
-	a.stopped.Add(1)
-	go func() {
-		defer a.stopped.Done()
+	a.stopped.Go(func() {
 		ticker := time.NewTicker(loggerRetentionInterval)
 		defer ticker.Stop()
 		for {
@@ -50,7 +49,7 @@ func (a *Logger) StartRetention(ctx context.Context) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // StopRetention stops the background deletion and waits for it to finish.

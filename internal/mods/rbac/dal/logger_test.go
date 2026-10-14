@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormschema "gorm.io/gorm/schema"
+
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
+	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 func TestLoggerQueryFiltersAndFillsUserNames(t *testing.T) {

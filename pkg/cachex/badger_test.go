@@ -34,7 +34,7 @@ func TestBadgerCache(t *testing.T) {
 	assert.Equal("", val)
 
 	tmap := make(map[string]bool)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		key := fmt.Sprintf("foo%d", i)
 		err = cache.Set(ctx, "tt", key, "bar")
 		assert.Nil(err)

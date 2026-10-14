@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/GoRustC/new-goadmin/internal/bootstrap"
 	"github.com/GoRustC/new-goadmin/internal/config"
-	"github.com/urfave/cli/v2"
 )
 
 // The function defines a CLI command to start a server with various flags and options, including the

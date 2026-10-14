@@ -53,7 +53,7 @@ func newRedisCache(cli redisClienter, opts ...Option) Cacher {
 }
 
 type redisClienter interface {
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
 	Get(ctx context.Context, key string) *redis.StringCmd
 	Exists(ctx context.Context, keys ...string) *redis.IntCmd
 	Del(ctx context.Context, keys ...string) *redis.IntCmd

@@ -9,17 +9,18 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/casbin/casbin/v2"
+	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/wirex"
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/middleware"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/casbin/casbin/v2"
-	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-	"go.uber.org/zap"
 )
 
 func startHTTPServer(ctx context.Context, injector *wirex.Injector) (func(), error) {

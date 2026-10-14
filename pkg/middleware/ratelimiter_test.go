@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GoRustC/new-goadmin/pkg/util"
 	"github.com/gin-gonic/gin"
+
+	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
 func TestRateLimiterMemoryStore(t *testing.T) {
@@ -24,7 +25,7 @@ func TestRateLimiterMemoryStore(t *testing.T) {
 	)
 
 	// The first maxRequests requests in a period pass, the next one is limited.
-	for i := 0; i < maxRequests; i++ {
+	for i := range maxRequests {
 		if ok, _ := store.Allow(ctx, "ip", period, maxRequests); !ok {
 			t.Fatalf("request %d should be allowed", i+1)
 		}
@@ -37,7 +38,7 @@ func TestRateLimiterMemoryStore(t *testing.T) {
 	// about two requests are available again. The old implementation refilled
 	// only one token per whole period and denied these.
 	time.Sleep(period / 5)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if ok, _ := store.Allow(ctx, "ip", period, maxRequests); !ok {
 			t.Fatalf("request %d after partial refill should be allowed", i+1)
 		}
@@ -78,7 +79,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 
 	// Anonymous requests are limited per client IP.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if code := do("10.0.0.1:1000", ""); code != http.StatusOK {
 			t.Fatalf("anonymous request %d: %d", i+1, code)
 		}
@@ -91,7 +92,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 	}
 
 	// Signed-in requests are limited per user, regardless of IP.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if code := do("10.0.0.1:1000", "?user=u1"); code != http.StatusOK {
 			t.Fatalf("user request %d: %d", i+1, code)
 		}

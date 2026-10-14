@@ -26,6 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LyricTian/captcha"
+	"github.com/LyricTian/captcha/store"
+
 	"github.com/GoRustC/new-goadmin/internal/bootstrap"
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
@@ -35,8 +38,6 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 	"github.com/GoRustC/new-goadmin/pkg/jwtx"
 	"github.com/GoRustC/new-goadmin/pkg/middleware"
-	"github.com/LyricTian/captcha"
-	"github.com/LyricTian/captcha/store"
 )
 
 const rootPassword = "Test-Root-123"

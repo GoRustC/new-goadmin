@@ -6,15 +6,16 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/LyricTian/captcha"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/api"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/GoRustC/new-goadmin/pkg/captchax"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
-	"github.com/LyricTian/captcha"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 type RBAC struct {

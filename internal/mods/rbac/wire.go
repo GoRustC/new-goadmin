@@ -1,10 +1,11 @@
 package rbac
 
 import (
+	"github.com/google/wire"
+
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/api"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/biz"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
-	"github.com/google/wire"
 )
 
 // Collection of wire providers

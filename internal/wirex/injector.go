@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods"
 	"github.com/GoRustC/new-goadmin/pkg/cachex"
 	"github.com/GoRustC/new-goadmin/pkg/gormx"
 	"github.com/GoRustC/new-goadmin/pkg/jwtx"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
-	"github.com/golang-jwt/jwt/v5"
-	"gorm.io/gorm"
 )
 
 // ProvideConfig hands the loaded configuration to the dependency graph, so

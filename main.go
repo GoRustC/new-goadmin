@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/GoRustC/new-goadmin/cmd"
 	"github.com/urfave/cli/v2"
+
+	"github.com/GoRustC/new-goadmin/cmd"
 )
 
 // Usage: go build -ldflags "-X main.VERSION=x.x.x"

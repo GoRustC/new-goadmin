@@ -14,7 +14,7 @@ var (
 
 type Value = toml.Primitive
 
-func Marshal(v interface{}) ([]byte, error) {
+func Marshal(v any) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := toml.NewEncoder(buf).Encode(v)
 	if err != nil {
@@ -23,7 +23,7 @@ func Marshal(v interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func MarshalToString(v interface{}) (string, error) {
+func MarshalToString(v any) (string, error) {
 	b, err := Marshal(v)
 	if err != nil {
 		return "", err

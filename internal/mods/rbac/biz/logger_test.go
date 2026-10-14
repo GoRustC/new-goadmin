@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GoRustC/new-goadmin/internal/config"
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormschema "gorm.io/gorm/schema"
+
+	"github.com/GoRustC/new-goadmin/internal/config"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 )
 
 func TestLoggerRetention(t *testing.T) {

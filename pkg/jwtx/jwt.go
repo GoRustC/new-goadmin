@@ -39,7 +39,7 @@ type options struct {
 	signingMethod jwt.SigningMethod
 	signingKey    []byte
 	signingKey2   []byte
-	keyFuncs      []func(*jwt.Token) (interface{}, error)
+	keyFuncs      []func(*jwt.Token) (any, error)
 	expired       int
 	tokenType     string
 }
@@ -80,7 +80,7 @@ func New(store Storer, opts ...Option) Auther {
 
 	// There is deliberately no built-in default key: a key shipped in source
 	// code lets anyone forge tokens. Without a key, signing and parsing fail.
-	o.keyFuncs = append(o.keyFuncs, func(t *jwt.Token) (interface{}, error) {
+	o.keyFuncs = append(o.keyFuncs, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidToken
 		}
@@ -91,7 +91,7 @@ func New(store Storer, opts ...Option) Auther {
 	})
 
 	if o.signingKey2 != nil {
-		o.keyFuncs = append(o.keyFuncs, func(t *jwt.Token) (interface{}, error) {
+		o.keyFuncs = append(o.keyFuncs, func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, ErrInvalidToken
 			}

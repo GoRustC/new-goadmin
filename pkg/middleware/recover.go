@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 type RecoveryConfig struct {

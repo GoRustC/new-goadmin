@@ -73,7 +73,7 @@ func wrapQueryOptions(db *gorm.DB, opts QueryOptions) *gorm.DB {
 	return db
 }
 
-func WrapPageQuery(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out interface{}) (*PaginationResult, error) {
+func WrapPageQuery(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out any) (*PaginationResult, error) {
 	if pp.OnlyCount {
 		var count int64
 		err := db.Count(&count).Error
@@ -119,7 +119,7 @@ func normalizePage(pp PaginationParam) PaginationParam {
 	return pp
 }
 
-func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out interface{}) (int64, error) {
+func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOptions, out any) (int64, error) {
 	pp = normalizePage(pp)
 	db = db.WithContext(ctx)
 	var count int64
@@ -137,7 +137,7 @@ func FindPage(ctx context.Context, db *gorm.DB, pp PaginationParam, opts QueryOp
 	return count, err
 }
 
-func FindOne(ctx context.Context, db *gorm.DB, opts QueryOptions, out interface{}) (bool, error) {
+func FindOne(ctx context.Context, db *gorm.DB, opts QueryOptions, out any) (bool, error) {
 	db = db.WithContext(ctx)
 	db = wrapQueryOptions(db, opts)
 	result := db.First(out)

@@ -114,6 +114,6 @@ func Context(ctx context.Context) *zap.Logger {
 
 type PrintLogger struct{}
 
-func (a *PrintLogger) Printf(format string, args ...interface{}) {
+func (a *PrintLogger) Printf(format string, args ...any) {
 	zap.L().WithOptions(zap.AddCallerSkip(1)).Info(fmt.Sprintf(format, args...))
 }

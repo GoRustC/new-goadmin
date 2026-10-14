@@ -1,8 +1,9 @@
 package util
 
 import (
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"gorm.io/gorm/clause"
+
+	"github.com/GoRustC/new-goadmin/pkg/errors"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 
 type ResponseResult struct {
 	Success bool          `json:"success"`
-	Data    interface{}   `json:"data,omitempty"`
+	Data    any           `json:"data,omitempty"`
 	Total   int64         `json:"total,omitempty"`
 	Error   *errors.Error `json:"error,omitempty"`
 }

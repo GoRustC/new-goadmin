@@ -8,6 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LyricTian/captcha"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
@@ -17,9 +21,6 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/jwtx"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/LyricTian/captcha"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // Login management for RBAC

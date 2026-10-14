@@ -13,7 +13,7 @@ var (
 	NewEncoder    = json.NewEncoder
 )
 
-func MarshalToString(v interface{}) string {
+func MarshalToString(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		fmt.Println("Failed to marshal json string: " + err.Error())

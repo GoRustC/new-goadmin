@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/gin-gonic/gin"
 )
 
 type CopyBodyConfig struct {

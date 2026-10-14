@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/gin-gonic/gin"
 )
 
 type AuthConfig struct {

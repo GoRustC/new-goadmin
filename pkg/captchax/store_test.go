@@ -33,16 +33,14 @@ func testStore(t *testing.T, s store.Store) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	winners := 0
-	for i := 0; i < 64; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 64 {
+		wg.Go(func() {
 			if s.Get("b", true) != nil {
 				mu.Lock()
 				winners++
 				mu.Unlock()
 			}
-		}()
+		})
 	}
 	finished := make(chan struct{})
 	go func() { wg.Wait(); close(finished) }()

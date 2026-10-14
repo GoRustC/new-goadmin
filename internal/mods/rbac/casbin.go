@@ -10,15 +10,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v2/model"
+	stringadapter "github.com/casbin/casbin/v2/persist/string-adapter"
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/casbin/casbin/v2"
-	"github.com/casbin/casbin/v2/model"
-	stringadapter "github.com/casbin/casbin/v2/persist/string-adapter"
-	"go.uber.org/zap"
 )
 
 // Casbinx builds the casbin policy from roles, menus and menu resources.
@@ -156,7 +157,7 @@ func (a *Casbinx) buildPolicy(ctx context.Context) (policy string, roles, rules 
 				continue
 			}
 			granted[m.ID] = struct{}{}
-			for _, pid := range strings.Split(m.ParentPath, util.TreePathDelimiter) {
+			for pid := range strings.SplitSeq(m.ParentPath, util.TreePathDelimiter) {
 				if pid != "" {
 					granted[pid] = struct{}{}
 				}

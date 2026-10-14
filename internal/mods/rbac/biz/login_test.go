@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 	"github.com/GoRustC/new-goadmin/pkg/jwtx"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestVerifyRootPassword(t *testing.T) {

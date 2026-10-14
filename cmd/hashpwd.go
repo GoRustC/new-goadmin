@@ -6,8 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 	"github.com/urfave/cli/v2"
+
+	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 )
 
 // HashPasswordCmd prints the value to use for General.Root.Password: a

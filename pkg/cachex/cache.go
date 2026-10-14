@@ -118,8 +118,8 @@ func (a *memCache) GetAndDelete(ctx context.Context, ns, key string) (string, bo
 
 func (a *memCache) Iterator(ctx context.Context, ns string, fn func(ctx context.Context, key, value string) bool) error {
 	for k, v := range a.cache.Items() {
-		if strings.HasPrefix(k, a.getKey(ns, "")) {
-			if !fn(ctx, strings.TrimPrefix(k, a.getKey(ns, "")), v.Object.(string)) {
+		if after, ok := strings.CutPrefix(k, a.getKey(ns, "")); ok {
+			if !fn(ctx, after, v.Object.(string)) {
 				break
 			}
 		}

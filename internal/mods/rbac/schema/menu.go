@@ -100,7 +100,7 @@ func (a Menus) SplitParentIDs() []string {
 		}
 		idMapper[item.ID] = struct{}{}
 		if pp := item.ParentPath; pp != "" {
-			for _, pid := range strings.Split(pp, util.TreePathDelimiter) {
+			for pid := range strings.SplitSeq(pp, util.TreePathDelimiter) {
 				if pid == "" {
 					continue
 				}

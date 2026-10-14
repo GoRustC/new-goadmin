@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"encoding/json"
+
 	"github.com/rs/xid"
 	"gorm.io/gorm"
 )
@@ -69,7 +70,7 @@ func toLogger(extra map[string]string, b []byte) (*Logger, error) {
 	msg := &Logger{
 		ID: xid.New().String(),
 	}
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (h *GormHook) Close() error {
 
 // takeString removes key from data and returns it as a string of at most max
 // characters (0 means no limit). Non-string values become "".
-func takeString(data map[string]interface{}, key string, max int) string {
+func takeString(data map[string]any, key string, max int) string {
 	v, _ := data[key].(string)
 	delete(data, key)
 	if max > 0 && utf8.RuneCountInString(v) > max {

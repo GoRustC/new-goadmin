@@ -381,11 +381,11 @@ func TestMenusAndLoggers(t *testing.T) {
 // verified by many requests at once, after which no one could log in.
 func TestConcurrentCaptchaVerification(t *testing.T) {
 	const rounds, concurrency = 200, 32
-	for round := 0; round < rounds; round++ {
+	for round := range rounds {
 		id, _ := newCaptcha(t)
 		body := map[string]string{"username": "x", "password": "x", "captcha_id": id, "captcha_code": "0000"}
 		done := make(chan struct{})
-		for i := 0; i < concurrency; i++ {
+		for range concurrency {
 			go func() {
 				defer func() { done <- struct{}{} }()
 				b, _ := json.Marshal(body)
@@ -395,7 +395,7 @@ func TestConcurrentCaptchaVerification(t *testing.T) {
 				}
 			}()
 		}
-		for i := 0; i < concurrency; i++ {
+		for range concurrency {
 			select {
 			case <-done:
 			case <-time.After(10 * time.Second):
@@ -547,7 +547,7 @@ func TestLoginLockAndEnumeration(t *testing.T) {
 	createUser(t, root, username, "Right-1", roleID)
 
 	max := config.C.General.LoginLock.MaxFailures
-	for i := 0; i < max; i++ {
+	for range max {
 		expectStatus(t, "wrong password", login(t, username, "wrong"), http.StatusBadRequest)
 	}
 	locked := login(t, username, "Right-1")
@@ -558,7 +558,7 @@ func TestLoginLockAndEnumeration(t *testing.T) {
 
 	// Names that do not exist lock the same way, so a lock reveals nothing.
 	ghost := "ghost" + s
-	for i := 0; i < max; i++ {
+	for range max {
 		r := login(t, ghost, "x")
 		expectStatus(t, "unknown user", r, http.StatusBadRequest)
 		if r.Error == nil || r.Error.ID != "com.invalid.username-or-password" {
@@ -885,12 +885,10 @@ func TestConcurrentDuplicateCreates(t *testing.T) {
 	const n = 10
 	codes := make(chan int, n)
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range n {
+		wg.Go(func() {
 			codes <- call(t, http.MethodPost, "/api/v1/users", root, userForm("dup"+s, "Pass-1", "activated", roleID)).status
-		}()
+		})
 	}
 	wg.Wait()
 	close(codes)

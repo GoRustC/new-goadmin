@@ -18,9 +18,9 @@ func TestParseTimeRange(t *testing.T) {
 		wantStart, wantEnd *time.Time
 	}{
 		{"", "", nil, nil},
-		{"2026-10-01 08:30:00", "", ptr(local("2026-10-01 08:30:00")), nil},
-		{"", "2026-10-02", nil, ptr(local("2026-10-02 00:00:00"))},
-		{"2026-10-01T00:00:00Z", "2026-10-02T00:00:00+08:00", ptr(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)), nil},
+		{"2026-10-01 08:30:00", "", new(local("2026-10-01 08:30:00")), nil},
+		{"", "2026-10-02", nil, new(local("2026-10-02 00:00:00"))},
+		{"2026-10-01T00:00:00Z", "2026-10-02T00:00:00+08:00", new(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)), nil},
 	}
 	for _, tt := range ok {
 		p := LoggerQueryParam{StartTime: tt.start, EndTime: tt.end}
@@ -45,8 +45,6 @@ func TestParseTimeRange(t *testing.T) {
 		}
 	}
 }
-
-func ptr(t time.Time) *time.Time { return &t }
 
 func sameTime(a, b *time.Time) bool {
 	if a == nil || b == nil {

@@ -1,10 +1,11 @@
 package api
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/biz"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"github.com/gin-gonic/gin"
 )
 
 // User management for RBAC

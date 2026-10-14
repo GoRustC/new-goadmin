@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/GoRustC/new-goadmin/internal/config"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/dal"
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
@@ -16,7 +18,6 @@ import (
 	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/logging"
 	"github.com/GoRustC/new-goadmin/pkg/util"
-	"go.uber.org/zap"
 )
 
 // Menu management for RBAC
@@ -227,7 +228,7 @@ func (a *Menu) fillQueryParam(ctx context.Context, params *schema.MenuQueryParam
 			codes    []string
 			lastMenu schema.Menu
 		)
-		for _, code := range strings.Split(params.CodePath, util.TreePathDelimiter) {
+		for code := range strings.SplitSeq(params.CodePath, util.TreePathDelimiter) {
 			if code == "" {
 				continue
 			}

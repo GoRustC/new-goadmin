@@ -33,7 +33,7 @@ func Wrap(err error, message string) error {
 
 // Wrapf returns an error annotating err with the formatted message.
 // If err is nil, Wrapf returns nil.
-func Wrapf(err error, format string, args ...interface{}) error {
+func Wrapf(err error, format string, args ...any) error {
 	if err == nil {
 		return nil
 	}
@@ -88,7 +88,7 @@ func Parse(err string) *Error {
 }
 
 // BadRequest generates a 400 error.
-func BadRequest(id, format string, a ...interface{}) error {
+func BadRequest(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultBadRequestID
 	}
@@ -101,7 +101,7 @@ func BadRequest(id, format string, a ...interface{}) error {
 }
 
 // Unauthorized generates a 401 error.
-func Unauthorized(id, format string, a ...interface{}) error {
+func Unauthorized(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultUnauthorizedID
 	}
@@ -114,7 +114,7 @@ func Unauthorized(id, format string, a ...interface{}) error {
 }
 
 // Forbidden generates a 403 error.
-func Forbidden(id, format string, a ...interface{}) error {
+func Forbidden(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultForbiddenID
 	}
@@ -127,7 +127,7 @@ func Forbidden(id, format string, a ...interface{}) error {
 }
 
 // NotFound generates a 404 error.
-func NotFound(id, format string, a ...interface{}) error {
+func NotFound(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultNotFoundID
 	}
@@ -140,7 +140,7 @@ func NotFound(id, format string, a ...interface{}) error {
 }
 
 // MethodNotAllowed generates a 405 error.
-func MethodNotAllowed(id, format string, a ...interface{}) error {
+func MethodNotAllowed(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultMethodNotAllowedID
 	}
@@ -153,7 +153,7 @@ func MethodNotAllowed(id, format string, a ...interface{}) error {
 }
 
 // TooManyRequests generates a 429 error.
-func TooManyRequests(id, format string, a ...interface{}) error {
+func TooManyRequests(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultTooManyRequestsID
 	}
@@ -166,7 +166,7 @@ func TooManyRequests(id, format string, a ...interface{}) error {
 }
 
 // Timeout generates a 408 error.
-func Timeout(id, format string, a ...interface{}) error {
+func Timeout(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultRequestTimeoutID
 	}
@@ -179,7 +179,7 @@ func Timeout(id, format string, a ...interface{}) error {
 }
 
 // Conflict generates a 409 error.
-func Conflict(id, format string, a ...interface{}) error {
+func Conflict(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultConflictID
 	}
@@ -192,7 +192,7 @@ func Conflict(id, format string, a ...interface{}) error {
 }
 
 // RequestEntityTooLarge generates a 413 error.
-func RequestEntityTooLarge(id, format string, a ...interface{}) error {
+func RequestEntityTooLarge(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultRequestEntityTooLargeID
 	}
@@ -205,7 +205,7 @@ func RequestEntityTooLarge(id, format string, a ...interface{}) error {
 }
 
 // InternalServerError generates a 500 error.
-func InternalServerError(id, format string, a ...interface{}) error {
+func InternalServerError(id, format string, a ...any) error {
 	if id == "" {
 		id = DefaultInternalServerErrorID
 	}
@@ -254,8 +254,7 @@ func As(err error) (*Error, bool) {
 	if err == nil {
 		return nil, false
 	}
-	var merr *Error
-	if errors.As(err, &merr) {
+	if merr, ok := errors.AsType[*Error](err); ok {
 		return merr, true
 	}
 	return nil, false

@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormschema "gorm.io/gorm/schema"
+
+	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
 )
 
 // Tables as created before the unique indexes existed.
