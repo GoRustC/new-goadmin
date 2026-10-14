@@ -7,10 +7,10 @@ type Captcha struct {
 }
 
 type LoginForm struct {
-	Username    string `json:"username" binding:"required"`     // Login name
-	Password    string `json:"password" binding:"required"`     // Login password (md5 hash)
-	CaptchaID   string `json:"captcha_id" binding:"required"`   // Captcha verify id
-	CaptchaCode string `json:"captcha_code" binding:"required"` // Captcha verify code
+	Username    string `json:"username" binding:"required"`        // Login name
+	Password    string `json:"password" binding:"required,max=64"` // Login password (md5 hash)
+	CaptchaID   string `json:"captcha_id" binding:"required"`      // Captcha verify id
+	CaptchaCode string `json:"captcha_code" binding:"required"`    // Captcha verify code
 }
 
 func (a *LoginForm) Trim() *LoginForm {
@@ -20,8 +20,8 @@ func (a *LoginForm) Trim() *LoginForm {
 }
 
 type UpdateLoginPassword struct {
-	OldPassword string `json:"old_password" binding:"required"` // Old password (md5 hash)
-	NewPassword string `json:"new_password" binding:"required"` // New password (md5 hash)
+	OldPassword string `json:"old_password" binding:"required,max=64"` // Old password (md5 hash)
+	NewPassword string `json:"new_password" binding:"required,max=64"` // New password (md5 hash)
 }
 
 type LoginToken struct {

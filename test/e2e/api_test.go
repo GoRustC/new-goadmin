@@ -223,6 +223,9 @@ func TestCurrentUserEndpoints(t *testing.T) {
 	expectStatus(t, "wrong old password", call(t, http.MethodPut, "/api/v1/current/password", newToken, map[string]any{
 		"old_password": hash.MD5String("wrong"), "new_password": hash.MD5String("New-Pass-2"),
 	}), http.StatusBadRequest)
+	expectStatus(t, "over-long new password", call(t, http.MethodPut, "/api/v1/current/password", newToken, map[string]any{
+		"old_password": hash.MD5String("Old-Pass-1"), "new_password": strings.Repeat("a", 100),
+	}), http.StatusBadRequest)
 	expectStatus(t, "change password", call(t, http.MethodPut, "/api/v1/current/password", newToken, map[string]any{
 		"old_password": hash.MD5String("Old-Pass-1"), "new_password": hash.MD5String("New-Pass-2"),
 	}), http.StatusOK)

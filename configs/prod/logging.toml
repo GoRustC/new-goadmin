@@ -3,7 +3,8 @@ Debug = false
 Level = "info" # debug/info/warn/error
 CallerSkip = 0
 
-# Logs go to stdout as JSON. Enable the file output only if nothing collects stdout.
+# Logs go to stderr as JSON (systemd sends them to journald). Enable the file
+# output only if nothing collects stderr.
 [Logger.File]
 Enable = false
 Path = "data/log/ginadmin.log"
