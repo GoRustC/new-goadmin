@@ -60,6 +60,8 @@ type redisClienter interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 	Exists(ctx context.Context, keys ...string) *redis.IntCmd
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
+	GetDel(ctx context.Context, key string) *redis.StringCmd
+	TxPipelined(ctx context.Context, fn func(redis.Pipeliner) error) ([]redis.Cmder, error)
 	Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd
 	Close() error
 }
@@ -103,33 +105,37 @@ func (a *redisCache) Exists(ctx context.Context, ns, key string) (bool, error) {
 }
 
 func (a *redisCache) Delete(ctx context.Context, ns, key string) error {
-	b, err := a.Exists(ctx, ns, key)
-	if err != nil {
-		return err
-	} else if !b {
-		return nil
-	}
-
-	cmd := a.cli.Del(ctx, a.getKey(ns, key))
-	if err := cmd.Err(); err != nil && !errors.Is(err, redis.Nil) {
-		return err
-	}
-	return nil
+	return a.cli.Del(ctx, a.getKey(ns, key)).Err()
 }
 
+// GetAndDelete uses GETDEL (Redis 6.2+), which reads and removes in one step.
 func (a *redisCache) GetAndDelete(ctx context.Context, ns, key string) (string, bool, error) {
-	value, ok, err := a.Get(ctx, ns, key)
-	if err != nil {
-		return "", false, err
-	} else if !ok {
+	value, err := a.cli.GetDel(ctx, a.getKey(ns, key)).Result()
+	if errors.Is(err, redis.Nil) {
 		return "", false, nil
-	}
-
-	cmd := a.cli.Del(ctx, a.getKey(ns, key))
-	if err := cmd.Err(); err != nil && !errors.Is(err, redis.Nil) {
+	} else if err != nil {
 		return "", false, err
 	}
 	return value, true, nil
+}
+
+// Incr runs INCR and the expiry in one MULTI/EXEC transaction.
+func (a *redisCache) Incr(ctx context.Context, ns, key string, expiration time.Duration) (int64, error) {
+	k := a.getKey(ns, key)
+	var incr *redis.IntCmd
+	_, err := a.cli.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		incr = p.Incr(ctx, k)
+		if expiration > 0 {
+			p.Expire(ctx, k, expiration)
+		} else {
+			p.Persist(ctx, k)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return incr.Val(), nil
 }
 
 func (a *redisCache) Iterator(ctx context.Context, ns string, fn func(ctx context.Context, key, value string) bool) error {

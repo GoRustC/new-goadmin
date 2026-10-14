@@ -1,12 +1,15 @@
 package biz
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/GoRustC/new-goadmin/internal/config"
+	"github.com/GoRustC/new-goadmin/pkg/cachex"
 	"github.com/GoRustC/new-goadmin/pkg/crypto/hash"
 	"github.com/GoRustC/new-goadmin/pkg/jwtx"
 )
@@ -62,5 +65,31 @@ func TestSessionExpired(t *testing.T) {
 	cfg.Middleware.Auth.MaxSessionHours = 0
 	if l.sessionExpired(claims(time.Now().Add(-365 * 24 * time.Hour))) {
 		t.Error("0 must disable the limit")
+	}
+}
+
+// Concurrent failed logins must all count toward the lock.
+func TestLoginLockCountsConcurrentFailures(t *testing.T) {
+	cfg := new(config.Config)
+	cfg.General.LoginLock.MaxFailures = 100
+	cfg.General.LoginLock.LockMinutes = 15
+	l := loginLock{cache: cachex.NewMemoryCache(cachex.MemoryConfig{CleanupInterval: time.Minute}), cfg: cfg}
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	for range 100 {
+		wg.Go(func() {
+			if err := l.fail(ctx, "alice"); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+
+	if n, err := l.failures(ctx, "alice"); err != nil || n != 100 {
+		t.Fatalf("failures = %d, %v; want 100", n, err)
+	}
+	if err := l.check(ctx, "alice"); err == nil {
+		t.Fatal("the name should be locked after 100 failures")
 	}
 }

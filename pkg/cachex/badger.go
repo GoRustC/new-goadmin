@@ -5,6 +5,7 @@ package cachex
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,35 +99,86 @@ func (a *badgerCache) Exists(ctx context.Context, ns, key string) (bool, error) 
 }
 
 func (a *badgerCache) Delete(ctx context.Context, ns, key string) error {
-	b, err := a.Exists(ctx, ns, key)
-	if err != nil {
-		return err
-	} else if !b {
-		return nil
-	}
-
 	return a.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(a.getKey(ns, key)))
 	})
 }
 
 func (a *badgerCache) GetAndDelete(ctx context.Context, ns, key string) (string, bool, error) {
-	value, ok, err := a.Get(ctx, ns, key)
-	if err != nil {
-		return "", false, err
-	} else if !ok {
-		return "", false, nil
-	}
-
-	err = a.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(a.getKey(ns, key)))
+	var (
+		value string
+		ok    bool
+	)
+	err := a.update(func(txn *badger.Txn) error {
+		value, ok = "", false
+		k := []byte(a.getKey(ns, key))
+		item, err := txn.Get(k)
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		val, err := item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		value, ok = string(val), true
+		return txn.Delete(k)
 	})
 	if err != nil {
 		return "", false, err
 	}
-
-	return value, true, nil
+	return value, ok, nil
 }
+
+func (a *badgerCache) Incr(ctx context.Context, ns, key string, expiration time.Duration) (int64, error) {
+	var n int64
+	err := a.update(func(txn *badger.Txn) error {
+		k := []byte(a.getKey(ns, key))
+		var (
+			value string
+			ok    bool
+		)
+		item, err := txn.Get(k)
+		switch {
+		case errors.Is(err, badger.ErrKeyNotFound):
+		case err != nil:
+			return err
+		default:
+			val, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			value, ok = string(val), true
+		}
+		if n, err = parseCounter(value, ok); err != nil {
+			return err
+		}
+		n++
+		entry := badger.NewEntry(k, []byte(strconv.FormatInt(n, 10)))
+		if expiration > 0 {
+			entry = entry.WithTTL(expiration)
+		}
+		return txn.SetEntry(entry)
+	})
+	return n, err
+}
+
+// update runs fn in a read-write transaction, retrying when a concurrent
+// transaction wrote the same key first. Badger transactions are
+// serializable, so the read-modify-write in fn is atomic.
+func (a *badgerCache) update(fn func(txn *badger.Txn) error) error {
+	var err error
+	for range maxConflictRetries {
+		if err = a.db.Update(fn); !errors.Is(err, badger.ErrConflict) {
+			return err
+		}
+	}
+	return err
+}
+
+// maxConflictRetries bounds update's retries under extreme contention.
+const maxConflictRetries = 100
 
 func (a *badgerCache) Iterator(ctx context.Context, ns string, fn func(ctx context.Context, key, value string) bool) error {
 	return a.db.View(func(txn *badger.Txn) error {

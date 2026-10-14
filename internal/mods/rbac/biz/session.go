@@ -64,19 +64,15 @@ func (l loginLock) check(ctx context.Context, username string) error {
 	return nil
 }
 
-// fail records a failed attempt. The read-modify-write is not atomic, so
-// concurrent failures may be undercounted slightly; the captcha already
-// limits how fast attempts can be made.
+// fail records a failed attempt atomically, so concurrent failures are all
+// counted. Each failure restarts the LockMinutes window.
 func (l loginLock) fail(ctx context.Context, username string) error {
 	if l.cfg.General.LoginLock.MaxFailures <= 0 {
 		return nil
 	}
-	n, err := l.failures(ctx, username)
-	if err != nil {
-		return err
-	}
-	return l.cache.Set(ctx, cacheNSLoginFailures, l.key(username), strconv.Itoa(n+1),
+	_, err := l.cache.Incr(ctx, cacheNSLoginFailures, l.key(username),
 		time.Duration(l.cfg.General.LoginLock.LockMinutes)*time.Minute)
+	return err
 }
 
 func (l loginLock) reset(ctx context.Context, username string) error {
