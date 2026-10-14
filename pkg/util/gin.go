@@ -126,13 +126,17 @@ func ResError(c *gin.Context, err error, status ...int) {
 		// application's "already exists" check.
 		err = errors.Conflict("", "Resource already exists")
 	}
-	if e, ok := errors.As(err); ok {
+	if e, ok := errors.AsError(err); ok {
 		// Work on a copy: errors are often package-level values shared by
 		// concurrent requests, such as middleware.ErrCasbinDenied.
 		cp := *e
 		ierr = &cp
 	} else {
-		ierr = errors.FromError(errors.InternalServerError("", "%s", err.Error()))
+		ierr = &errors.Error{
+			ID:     errors.DefaultInternalServerErrorID,
+			Code:   http.StatusInternalServerError,
+			Status: http.StatusText(http.StatusInternalServerError),
+		}
 	}
 
 	code := int(ierr.Code)

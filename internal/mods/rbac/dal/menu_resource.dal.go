@@ -6,7 +6,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -38,7 +37,7 @@ func (a *MenuResource) Query(ctx context.Context, params schema.MenuResourceQuer
 	var list schema.MenuResources
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	queryResult := &schema.MenuResourceQueryResult{
@@ -58,7 +57,7 @@ func (a *MenuResource) Get(ctx context.Context, id string, opts ...schema.MenuRe
 	item := new(schema.MenuResource)
 	ok, err := util.FindOne(ctx, GetMenuResourceDB(ctx, a.DB).Where("id=?", id), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -68,35 +67,35 @@ func (a *MenuResource) Get(ctx context.Context, id string, opts ...schema.MenuRe
 // Exist checks if the specified menu resource exists in the database.
 func (a *MenuResource) Exists(ctx context.Context, id string) (bool, error) {
 	ok, err := util.Exists(ctx, GetMenuResourceDB(ctx, a.DB).Where("id=?", id))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // ExistsMethodPathByMenuID checks if the specified menu resource exists in the database.
 func (a *MenuResource) ExistsMethodPathByMenuID(ctx context.Context, method, path, menuID string) (bool, error) {
 	ok, err := util.Exists(ctx, GetMenuResourceDB(ctx, a.DB).Where("method=? AND path=? AND menu_id=?", method, path, menuID))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Create a new menu resource.
 func (a *MenuResource) Create(ctx context.Context, item *schema.MenuResource) error {
 	result := GetMenuResourceDB(ctx, a.DB).Create(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Update the specified menu resource in the database.
 func (a *MenuResource) Update(ctx context.Context, item *schema.MenuResource) error {
 	result := GetMenuResourceDB(ctx, a.DB).Where("id=?", item.ID).Select("*").Omit("created_at").Updates(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Delete the specified menu resource from the database.
 func (a *MenuResource) Delete(ctx context.Context, id string) error {
 	result := GetMenuResourceDB(ctx, a.DB).Where("id=?", id).Delete(new(schema.MenuResource))
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Deletes the menu resource by menu id.
 func (a *MenuResource) DeleteByMenuID(ctx context.Context, menuID string) error {
 	result := GetMenuResourceDB(ctx, a.DB).Where("menu_id=?", menuID).Delete(new(schema.MenuResource))
-	return errors.WithStack(result.Error)
+	return result.Error
 }

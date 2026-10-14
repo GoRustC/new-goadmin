@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"gorm.io/gorm"
@@ -142,7 +143,7 @@ func FindOne(ctx context.Context, db *gorm.DB, opts QueryOptions, out any) (bool
 	db = wrapQueryOptions(db, opts)
 	result := db.First(out)
 	if err := result.Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
 		return false, err

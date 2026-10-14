@@ -51,7 +51,7 @@ func (a *Login) ParseUserID(c *gin.Context) (string, error) {
 
 	claims, err := a.Auth.ParseClaims(ctx, token)
 	if err != nil {
-		if err == jwtx.ErrInvalidToken {
+		if errors.Is(err, jwtx.ErrInvalidToken) {
 			return "", invalidToken
 		}
 		return "", err
@@ -139,7 +139,7 @@ func (a *Login) ResponseCaptcha(ctx context.Context, w http.ResponseWriter, id s
 	if err != nil {
 		// Nothing was written yet; let the JSON error set its own content type.
 		h.Del("Content-Type")
-		if err == captcha.ErrNotFound {
+		if errors.Is(err, captcha.ErrNotFound) {
 			return errors.NotFound("", "Captcha id not found")
 		}
 		return err

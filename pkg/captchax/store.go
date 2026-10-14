@@ -8,6 +8,7 @@ package captchax
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -132,7 +133,7 @@ func (s *RedisStore) Get(id string, clear bool) []byte {
 		val, err = s.cli.Get(ctx, s.prefix+id).Bytes()
 	}
 	if err != nil {
-		if err != redis.Nil {
+		if !errors.Is(err, redis.Nil) {
 			zap.L().Error("Failed to read captcha", zap.Error(err))
 		}
 		return nil

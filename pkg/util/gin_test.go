@@ -18,7 +18,7 @@ import (
 // requests and could be rewritten for every later response.
 func TestResErrorDoesNotModifySharedError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	shared := errors.Forbidden("shared", "Permission denied").(*errors.Error)
+	shared, _ := errors.AsError(errors.Forbidden("shared", "Permission denied"))
 
 	var wg sync.WaitGroup
 	for i := range 32 {

@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -59,7 +58,7 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 	var list schema.Loggers
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	if err := a.fillUserNames(ctx, list); err != nil {
 		return nil, err
@@ -75,7 +74,7 @@ func (a *Logger) Query(ctx context.Context, params schema.LoggerQueryParam, opts
 // DeleteBefore removes log entries created before t and returns how many.
 func (a *Logger) DeleteBefore(ctx context.Context, t time.Time) (int64, error) {
 	result := GetLoggerDB(ctx, a.DB).Where("created_at < ?", t).Delete(new(schema.Logger))
-	return result.RowsAffected, errors.WithStack(result.Error)
+	return result.RowsAffected, result.Error
 }
 
 // fillUserNames sets UserName and LoginName from the user table.
@@ -95,7 +94,7 @@ func (a *Logger) fillUserNames(ctx context.Context, list schema.Loggers) error {
 	}
 	var users schema.Users
 	if err := GetUserDB(ctx, a.DB).Select("id", "name", "username").Where("id IN (?)", ids).Find(&users).Error; err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	byID := make(map[string]*schema.User, len(users))
 	for _, u := range users {

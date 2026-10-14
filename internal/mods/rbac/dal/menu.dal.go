@@ -6,7 +6,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -57,7 +56,7 @@ func (a *Menu) Query(ctx context.Context, params schema.MenuQueryParam, opts ...
 	var list schema.Menus
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	queryResult := &schema.MenuQueryResult{
@@ -77,7 +76,7 @@ func (a *Menu) Get(ctx context.Context, id string, opts ...schema.MenuQueryOptio
 	item := new(schema.Menu)
 	ok, err := util.FindOne(ctx, GetMenuDB(ctx, a.DB).Where("id=?", id), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -93,7 +92,7 @@ func (a *Menu) GetByCodeAndParentID(ctx context.Context, code, parentID string, 
 	item := new(schema.Menu)
 	ok, err := util.FindOne(ctx, GetMenuDB(ctx, a.DB).Where("code=? AND parent_id=?", code, parentID), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -110,7 +109,7 @@ func (a *Menu) GetByNameAndParentID(ctx context.Context, name, parentID string, 
 	item := new(schema.Menu)
 	ok, err := util.FindOne(ctx, GetMenuDB(ctx, a.DB).Where("name=? AND parent_id=?", name, parentID), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -120,47 +119,47 @@ func (a *Menu) GetByNameAndParentID(ctx context.Context, name, parentID string, 
 // Checks if the specified menu exists in the database.
 func (a *Menu) Exists(ctx context.Context, id string) (bool, error) {
 	ok, err := util.Exists(ctx, GetMenuDB(ctx, a.DB).Where("id=?", id))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Checks if a menu with the specified `code` exists under the specified `parentID` in the database.
 func (a *Menu) ExistsCodeByParentID(ctx context.Context, code, parentID string) (bool, error) {
 	ok, err := util.Exists(ctx, GetMenuDB(ctx, a.DB).Where("code=? AND parent_id=?", code, parentID))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Checks if a menu with the specified `name` exists under the specified `parentID` in the database.
 func (a *Menu) ExistsNameByParentID(ctx context.Context, name, parentID string) (bool, error) {
 	ok, err := util.Exists(ctx, GetMenuDB(ctx, a.DB).Where("name=? AND parent_id=?", name, parentID))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Create a new menu.
 func (a *Menu) Create(ctx context.Context, item *schema.Menu) error {
 	result := GetMenuDB(ctx, a.DB).Create(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Update the specified menu in the database.
 func (a *Menu) Update(ctx context.Context, item *schema.Menu) error {
 	result := GetMenuDB(ctx, a.DB).Where("id=?", item.ID).Select("*").Omit("created_at").Updates(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Delete the specified menu from the database.
 func (a *Menu) Delete(ctx context.Context, id string) error {
 	result := GetMenuDB(ctx, a.DB).Where("id=?", id).Delete(new(schema.Menu))
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Updates the parent path of the specified menu.
 func (a *Menu) UpdateParentPath(ctx context.Context, id, parentPath string) error {
 	result := GetMenuDB(ctx, a.DB).Where("id=?", id).Update("parent_path", parentPath)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Updates the status of all menus whose parent path starts with the provided parent path.
 func (a *Menu) UpdateStatusByParentPath(ctx context.Context, parentPath, status string) error {
 	result := GetMenuDB(ctx, a.DB).Where("parent_path like ?", parentPath+"%").Update("status", status)
-	return errors.WithStack(result.Error)
+	return result.Error
 }

@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -30,11 +29,11 @@ func (a *UserRole) Query(ctx context.Context, params schema.UserRoleQueryParam, 
 
 	userRoleTable, err := util.TableName(a.DB, new(schema.UserRole))
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	roleTable, err := util.TableName(a.DB, new(schema.Role))
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	// util.GetDB keeps the query inside the caller's transaction, if any.
@@ -57,7 +56,7 @@ func (a *UserRole) Query(ctx context.Context, params schema.UserRoleQueryParam, 
 	var list schema.UserRoles
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	queryResult := &schema.UserRoleQueryResult{
@@ -77,7 +76,7 @@ func (a *UserRole) Get(ctx context.Context, id string, opts ...schema.UserRoleQu
 	item := new(schema.UserRole)
 	ok, err := util.FindOne(ctx, GetUserRoleDB(ctx, a.DB).Where("id=?", id), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -87,33 +86,33 @@ func (a *UserRole) Get(ctx context.Context, id string, opts ...schema.UserRoleQu
 // Exist checks if the specified user role exists in the database.
 func (a *UserRole) Exists(ctx context.Context, id string) (bool, error) {
 	ok, err := util.Exists(ctx, GetUserRoleDB(ctx, a.DB).Where("id=?", id))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Create a new user role.
 func (a *UserRole) Create(ctx context.Context, item *schema.UserRole) error {
 	result := GetUserRoleDB(ctx, a.DB).Create(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Update the specified user role in the database.
 func (a *UserRole) Update(ctx context.Context, item *schema.UserRole) error {
 	result := GetUserRoleDB(ctx, a.DB).Where("id=?", item.ID).Select("*").Omit("created_at").Updates(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Delete the specified user role from the database.
 func (a *UserRole) Delete(ctx context.Context, id string) error {
 	result := GetUserRoleDB(ctx, a.DB).Where("id=?", id).Delete(new(schema.UserRole))
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 func (a *UserRole) DeleteByUserID(ctx context.Context, userID string) error {
 	result := GetUserRoleDB(ctx, a.DB).Where("user_id=?", userID).Delete(new(schema.UserRole))
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 func (a *UserRole) DeleteByRoleID(ctx context.Context, roleID string) error {
 	result := GetUserRoleDB(ctx, a.DB).Where("role_id=?", roleID).Delete(new(schema.UserRole))
-	return errors.WithStack(result.Error)
+	return result.Error
 }

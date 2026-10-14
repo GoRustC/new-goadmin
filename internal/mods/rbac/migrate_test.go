@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestAutoMigrateReplacesLegacyIndexes(t *testing.T) {
 			if err := db.Create(&schema.User{ID: "u1", Username: "same"}).Error; err != nil {
 				t.Fatal(err)
 			}
-			if err := db.Create(&schema.User{ID: "u2", Username: "same"}).Error; err != gorm.ErrDuplicatedKey {
+			if err := db.Create(&schema.User{ID: "u2", Username: "same"}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
 				t.Fatalf("duplicate username: got %v, want gorm.ErrDuplicatedKey", err)
 			}
 		})

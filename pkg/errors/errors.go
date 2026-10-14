@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 )
 
 // Define alias
@@ -15,12 +14,6 @@ var (
 	Is     = errors.Is
 	Errorf = fmt.Errorf
 )
-
-// WithStack returns err unchanged. It is kept for API compatibility with
-// the previous github.com/pkg/errors based implementation.
-func WithStack(err error) error {
-	return err
-}
 
 // Wrap returns an error annotating err with the supplied message.
 // If err is nil, Wrap returns nil.
@@ -74,17 +67,6 @@ func New(id, detail string, code int32) error {
 		Detail: detail,
 		Status: http.StatusText(int(code)),
 	}
-}
-
-// Parse tries to parse a JSON string into an error. If that
-// fails, it will set the given string as the error detail.
-func Parse(err string) *Error {
-	e := new(Error)
-	errr := json.Unmarshal([]byte(err), e)
-	if errr != nil {
-		e.Detail = err
-	}
-	return e
 }
 
 // BadRequest generates a 400 error.
@@ -217,76 +199,8 @@ func InternalServerError(id, format string, a ...any) error {
 	}
 }
 
-// Equal tries to compare errors
-func Equal(err1 error, err2 error) bool {
-	verr1, ok1 := err1.(*Error)
-	verr2, ok2 := err2.(*Error)
-
-	if ok1 != ok2 {
-		return false
-	}
-
-	if !ok1 {
-		return err1 == err2
-	}
-
-	if verr1.Code != verr2.Code {
-		return false
-	}
-
-	return true
-}
-
-// FromError try to convert go error to *Error
-func FromError(err error) *Error {
-	if err == nil {
-		return nil
-	}
-	if verr, ok := err.(*Error); ok && verr != nil {
-		return verr
-	}
-
-	return Parse(err.Error())
-}
-
-// As finds the first error in err's chain that matches *Error
-func As(err error) (*Error, bool) {
-	if err == nil {
-		return nil, false
-	}
-	if merr, ok := errors.AsType[*Error](err); ok {
-		return merr, true
-	}
-	return nil, false
-}
-
-type MultiError struct {
-	lock   *sync.Mutex
-	Errors []error
-}
-
-func NewMultiError() *MultiError {
-	return &MultiError{
-		lock:   &sync.Mutex{},
-		Errors: make([]error, 0),
-	}
-}
-
-func (e *MultiError) Append(err error) {
-	e.Errors = append(e.Errors, err)
-}
-
-func (e *MultiError) AppendWithLock(err error) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	e.Append(err)
-}
-
-func (e *MultiError) HasErrors() bool {
-	return len(e.Errors) > 0
-}
-
-func (e *MultiError) Error() string {
-	b, _ := json.Marshal(e)
-	return string(b)
+// AsError finds the first *Error in err's chain. Unlike the standard
+// library's errors.As it returns the match instead of filling a target.
+func AsError(err error) (*Error, bool) {
+	return errors.AsType[*Error](err)
 }

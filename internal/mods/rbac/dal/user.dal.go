@@ -6,7 +6,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -41,7 +40,7 @@ func (a *User) Query(ctx context.Context, params schema.UserQueryParam, opts ...
 	var list schema.Users
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	queryResult := &schema.UserQueryResult{
@@ -61,7 +60,7 @@ func (a *User) Get(ctx context.Context, id string, opts ...schema.UserQueryOptio
 	item := new(schema.User)
 	ok, err := util.FindOne(ctx, GetUserDB(ctx, a.DB).Where("id=?", id), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -77,7 +76,7 @@ func (a *User) GetByUsername(ctx context.Context, username string, opts ...schem
 	item := new(schema.User)
 	ok, err := util.FindOne(ctx, GetUserDB(ctx, a.DB).Where("username=?", username), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -87,18 +86,18 @@ func (a *User) GetByUsername(ctx context.Context, username string, opts ...schem
 // Exist checks if the specified user exists in the database.
 func (a *User) Exists(ctx context.Context, id string) (bool, error) {
 	ok, err := util.Exists(ctx, GetUserDB(ctx, a.DB).Where("id=?", id))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 func (a *User) ExistsUsername(ctx context.Context, username string) (bool, error) {
 	ok, err := util.Exists(ctx, GetUserDB(ctx, a.DB).Where("username=?", username))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Create a new user.
 func (a *User) Create(ctx context.Context, item *schema.User) error {
 	result := GetUserDB(ctx, a.DB).Create(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Update the specified user in the database.
@@ -110,16 +109,16 @@ func (a *User) Update(ctx context.Context, item *schema.User, selectFields ...st
 		db = db.Select("*").Omit("created_at")
 	}
 	result := db.Updates(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Delete the specified user from the database.
 func (a *User) Delete(ctx context.Context, id string) error {
 	result := GetUserDB(ctx, a.DB).Where("id=?", id).Delete(new(schema.User))
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 func (a *User) UpdatePasswordByID(ctx context.Context, id string, password string) error {
 	result := GetUserDB(ctx, a.DB).Where("id=?", id).Select("password").Updates(schema.User{Password: password})
-	return errors.WithStack(result.Error)
+	return result.Error
 }

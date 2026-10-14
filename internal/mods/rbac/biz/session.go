@@ -99,7 +99,9 @@ func tokenRevoked(ctx context.Context, cache cachex.Cacher, userID string, issue
 	}
 	revokedAt, err := strconv.ParseInt(val, 10, 64)
 	if err != nil {
-		return false, nil
+		// Fail closed: a record that cannot be read must not let a possibly
+		// revoked token through.
+		return false, errors.Wrapf(err, "parse token revocation time of user %s", userID)
 	}
 	return issuedAt.UnixMilli() < revokedAt, nil
 }

@@ -6,7 +6,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/GoRustC/new-goadmin/internal/mods/rbac/schema"
-	"github.com/GoRustC/new-goadmin/pkg/errors"
 	"github.com/GoRustC/new-goadmin/pkg/util"
 )
 
@@ -44,7 +43,7 @@ func (a *Role) Query(ctx context.Context, params schema.RoleQueryParam, opts ...
 	var list schema.Roles
 	pageResult, err := util.WrapPageQuery(ctx, db, params.PaginationParam, opt.QueryOptions, &list)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	queryResult := &schema.RoleQueryResult{
@@ -64,7 +63,7 @@ func (a *Role) Get(ctx context.Context, id string, opts ...schema.RoleQueryOptio
 	item := new(schema.Role)
 	ok, err := util.FindOne(ctx, GetRoleDB(ctx, a.DB).Where("id=?", id), opt.QueryOptions, item)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	} else if !ok {
 		return nil, nil
 	}
@@ -74,28 +73,28 @@ func (a *Role) Get(ctx context.Context, id string, opts ...schema.RoleQueryOptio
 // Exist checks if the specified role exists in the database.
 func (a *Role) Exists(ctx context.Context, id string) (bool, error) {
 	ok, err := util.Exists(ctx, GetRoleDB(ctx, a.DB).Where("id=?", id))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 func (a *Role) ExistsCode(ctx context.Context, code string) (bool, error) {
 	ok, err := util.Exists(ctx, GetRoleDB(ctx, a.DB).Where("code=?", code))
-	return ok, errors.WithStack(err)
+	return ok, err
 }
 
 // Create a new role.
 func (a *Role) Create(ctx context.Context, item *schema.Role) error {
 	result := GetRoleDB(ctx, a.DB).Create(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Update the specified role in the database.
 func (a *Role) Update(ctx context.Context, item *schema.Role) error {
 	result := GetRoleDB(ctx, a.DB).Where("id=?", item.ID).Select("*").Omit("created_at").Updates(item)
-	return errors.WithStack(result.Error)
+	return result.Error
 }
 
 // Delete the specified role from the database.
 func (a *Role) Delete(ctx context.Context, id string) error {
 	result := GetRoleDB(ctx, a.DB).Where("id=?", id).Delete(new(schema.Role))
-	return errors.WithStack(result.Error)
+	return result.Error
 }

@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -344,7 +345,7 @@ func TestLoginAndPermissions(t *testing.T) {
 	}, cachex.WithDelimiter(config.C.Middleware.Auth.Store.Delimiter),
 		cachex.WithKeyPrefix(config.C.Storage.Cache.KeyPrefix))),
 		jwtx.SetSigningKey(config.C.Middleware.Auth.SigningKey, ""))
-	if _, err := other.ParseSubject(context.Background(), token); err != jwtx.ErrInvalidToken {
+	if _, err := other.ParseSubject(context.Background(), token); !errors.Is(err, jwtx.ErrInvalidToken) {
 		t.Fatalf("another instance accepted a logged-out token: err=%v", err)
 	}
 	_ = other.Release(context.Background())
